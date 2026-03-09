@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>专业大五人格测试 (单题沉浸版)</title>
+    <style>
+        body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; background-color: #f0f2f5; color: #333; margin: 0; padding-top: 80px; padding-bottom: 50px;}
+        /* 顶部进度条 */
+        .header { position: fixed; top: 0; left: 0; width: 100%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); z-index: 1000; padding: 15px 20px; box-sizing: border-box;}
+        .progress-text { font-size: 15px; font-weight: bold; color: #555; margin-bottom: 8px;}
+        .progress-bar { width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #4caf50; width: 0%; transition: width 0.4s ease; }
+        
+        /* 居中容器 */
+        .container { max-width: 800px; margin: 0 auto; padding: 0 20px; }
+        
+        /* 题目卡片：大字号沉浸设计 */
+        .card { background: #fff; border-radius: 16px; padding: 40px; box-shadow: 0 8px 24px rgba(0,0,0,0.04); min-height: 350px; display: flex; flex-direction: column; justify-content: center;}
+        .q-number { font-size: 16px; color: #888; margin-bottom: 15px; letter-spacing: 1px;}
+        .q-title { font-size: 26px; font-weight: bold; margin-bottom: 25px; line-height: 1.4; color: #222;}
+        .q-anchor { font-size: 16px; color: #555; background: #f8f9fa; border-left: 5px solid #2196f3; padding: 15px 20px; margin-bottom: 35px; white-space: pre-line; border-radius: 0 6px 6px 0; line-height: 1.6;}
+        
+        /* 0.5交错式选项布局 */
+        .options-area { margin-top: auto; }
+        .row-int { display: flex; justify-content: space-between; gap: 4%; margin-bottom: 15px;}
+        .row-half { display: flex; justify-content: space-between; gap: 4%; padding: 0 10%; /* 错位关键 */}
+        
+        .opt-btn { flex: 1; padding: 15px 0; border: 2px solid #e0e0e0; background: #fff; border-radius: 10px; cursor: pointer; font-size: 20px; font-weight: bold; color: #555; transition: all 0.2s; text-align: center; position: relative;}
+        .opt-btn:hover { background: #f0f5ff; border-color: #2196f3; color: #2196f3;}
+        .opt-btn.selected { background: #2196f3; color: #fff; border-color: #2196f3; transform: scale(1.05); box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);}
+        .opt-btn span.label { display: block; font-size: 12px; font-weight: normal; margin-top: 6px; color: #888; }
+        .opt-btn.selected span.label { color: #e3f2fd; }
+
+        /* 底部控制区 */
+        .controls { display: flex; justify-content: space-between; margin-top: 20px; }
+        .nav-btn { background: #fff; border: 1px solid #ccc; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 15px; color: #555; transition: 0.2s;}
+        .nav-btn:hover { background: #eee; }
+        .nav-btn:disabled { opacity: 0; pointer-events: none; } /* 第一题隐藏上一题 */
+
+        /* 结果页面 */
+        .result-screen { display: none; background: #fff; border-radius: 16px; padding: 40px; box-shadow: 0 8px 24px rgba(0,0,0,0.04);}
+        .result-title { font-size: 28px; text-align: center; margin-bottom: 30px;}
+        .export-btn { display: block; width: 100%; max-width: 300px; margin: 20px auto; padding: 15px; background: #ff9800; color: white; text-align: center; border-radius: 8px; cursor: pointer; border: none; font-size: 18px; font-weight: bold; box-shadow: 0 4px 10px rgba(255,152,0,0.3);}
+        .result-table { width: 100%; border-collapse: collapse; margin-top: 20px;}
+        .result-table th, .result-table td { border: 1px solid #ddd; padding: 12px; text-align: center;}
+        .result-table th { background-color: #f8f9fa;}
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="progress-text" id="progress-text">已答 0 / 300 题</div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div id="quiz-screen">
+            <div class="card" id="question-card">
+                </div>
+            <div class="controls">
+                <button class="nav-btn" id="prev-btn" onclick="goPrev()">← 上一题</button>
+                <button class="nav-btn" id="next-btn" onclick="goNext()">下一题 →</button>
+            </div>
+        </div>
+
+        <div id="result-screen" class="result-screen">
+            <h2 class="result-title">测试完成 🎉</h2>
+            <button class="export-btn" onclick="exportCSV()">📥 导出详细数据 (CSV)</button>
+            <p style="text-align: center; color: #666; font-size: 14px;">（提示：总分为系统自动处理了反向题后的得分累加）</p>
+            <table class="result-table">
+                <thead>
+                    <tr><th>分面 (Facet)</th><th>已答题数</th><th>总分 (Sum)</th></tr>
+                </thead>
+                <tbody id="result-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // 演示题库：请将你转好的300题JSON替换此处
+        const questions = [
+            {
+                "Number": 1,
+                "Sign": "+",
+                "Facet": "N1",
+                "Item": "我总是对事情感到担忧。",
+                "Anchor": "• 容易把小问题往坏处想、反复琢磨（如消息未回、任务细节）\n• 在等待结果或不确定时更难放松（如考试/面试/体检）"
+            },
+            {
+                "Number": 2,
+                "Sign": "+",
+                "Facet": "E1",
+                "Item": "我很容易交到朋友。",
+                "Anchor": "• 看的是人际温暖与亲近感，而非社交技巧高低\n• 关键词提示：make / friends / easily"
+            },
+            {
+                "Number": 3,
+                "Sign": "_",
+                "Facet": "C5",
+                "Item": "我在需要做决定时总是拖延。",
+                "Anchor": "• 看的是执行力与抗拖延能力\n• 关键词提示：postpone / decisions"
+            }
+        ];
+
+        const totalQuestions = questions.length;
+        let answers = JSON.parse(localStorage.getItem('ipip_answers')) || {};
+        let currentIndex = 0;
+
+        // 寻找第一道未答的题，实现进度断点续传
+        for(let i=0; i<totalQuestions; i++) {
+            if(!answers[questions[i].Number]) {
+                currentIndex = i;
+                break;
+            }
+        }
+        if(currentIndex >= totalQuestions) currentIndex = totalQuestions - 1; // 如果全答完了，停在最后一题
+
+        function renderQuestion() {
+            if (currentIndex >= totalQuestions) {
+                showResults();
+                return;
+            }
+
+            const q = questions[currentIndex];
+            const currentAnswer = answers[q.Number];
+            
+            // 文本标签只给1，3，5
+            const labels = { 1: "非常不同意", 3: "一般/不确定", 5: "非常同意" };
+
+            let html = `
+                <div class="q-number">题目进度： ${currentIndex + 1} / ${totalQuestions}</div>
+                <div class="q-title">${q.Item}</div>
+                <div class="q-anchor">${q.Anchor}</div>
+                
+                <div class="options-area">
+                    <div class="row-int">
+                        ${[1, 2, 3, 4, 5].map(v => `
+                            <div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" data-val="${v}" onclick="selectOption(${q.Number}, ${v}, this)">
+                                ${v}
+                                ${labels[v] ? `<span class="label">${labels[v]}</span>` : `<span class="label" style="opacity:0;">占位</span>`}
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="row-half">
+                        ${[1.5, 2.5, 3.5, 4.5].map(v => `
+                            <div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" data-val="${v}" onclick="selectOption(${q.Number}, ${v}, this)">
+                                ${v}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('question-card').innerHTML = html;
+            
+            // 按钮显隐逻辑
+            document.getElementById('prev-btn').disabled = (currentIndex === 0);
+            
+            // 如果这道题还没答，"下一题"按钮可以隐藏或置灰，强迫用户必须选择。
+            // 这里我们允许如果已经有答案，可以直接点下一题
+            document.getElementById('next-btn').style.visibility = currentAnswer ? 'visible' : 'hidden';
+
+            updateProgress();
+        }
+
+        function selectOption(qNumber, value, element) {
+            // 保存逻辑
+            answers[qNumber] = value;
+            localStorage.setItem('ipip_answers', JSON.stringify(answers));
+            
+            // UI 更新高亮
+            document.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('selected'));
+            element.classList.add('selected');
+            
+            updateProgress();
+
+            // 核心体验提升：选中后自动延迟翻页
+            setTimeout(() => {
+                goNext();
+            }, 350); // 350毫秒延迟，足够用户看到按下的反馈且不拖沓
+        }
+
+        function goPrev() {
+            if(currentIndex > 0) {
+                currentIndex--;
+                renderQuestion();
+            }
+        }
+
+        function goNext() {
+            currentIndex++;
+            if(currentIndex >= totalQuestions) {
+                showResults();
+            } else {
+                renderQuestion();
+            }
+        }
+
+        function updateProgress() {
+            const answeredCount = Object.keys(answers).length;
+            document.getElementById('progress-text').innerText = `已答 ${answeredCount} / ${totalQuestions} 题`;
+            document.getElementById('progress-fill').style.width = (answeredCount / totalQuestions * 100) + '%';
+        }
+
+        // ================= 数据统计与导出逻辑 =================
+
+        function calculateScores() {
+            let results = [];
+            let facetStats = {};
+
+            questions.forEach(q => {
+                let ans = answers[q.Number] || 0;
+                let scored = ans;
+                
+                if (ans > 0) {
+                    // 反向计分逻辑：6 - x 同样适用于 0.5 (例如：6 - 1.5 = 4.5)
+                    if (q.Sign === "_") {
+                        scored = 6 - ans;
+                    }
+
+                    // 汇总到 Facet
+                    if(!facetStats[q.Facet]) {
+                        facetStats[q.Facet] = { sum: 0, count: 0 };
+                    }
+                    facetStats[q.Facet].sum += scored;
+                    facetStats[q.Facet].count += 1;
+                }
+
+                results.push({
+                    Number: q.Number,
+                    Facet: q.Facet,
+                    Item: q.Item.replace(/,/g, "，"), // 防CSV逗号冲突
+                    Sign: q.Sign,
+                    RawAnswer: ans,
+                    FinalScored: scored
+                });
+            });
+
+            return { results, facetStats };
+        }
+
+        function showResults() {
+            document.getElementById('quiz-screen').style.display = 'none';
+            document.getElementById('result-screen').style.display = 'block';
+
+            const { facetStats } = calculateScores();
+            let tbody = "";
+            
+            // 渲染统计表格
+            for(let f in facetStats) {
+                tbody += `<tr>
+                    <td><strong>${f}</strong></td>
+                    <td>${facetStats[f].count}</td>
+                    <td>${facetStats[f].sum}</td>
+                </tr>`;
+            }
+            document.getElementById('result-tbody').innerHTML = tbody;
+        }
+
+        function exportCSV() {
+            const { results } = calculateScores();
+            
+            // 构建CSV内容 (含BOM头防中文乱码)
+            let csvContent = "\uFEFF";
+            csvContent += "题号(Number),分面(Facet),题目(Item),方向(Sign),原始选择(RawAnswer),最终计分(FinalScored)\n";
+            
+            results.forEach(r => {
+                csvContent += `${r.Number},${r.Facet},${r.Item},${r.Sign},${r.RawAnswer},${r.FinalScored}\n`;
+            });
+
+            // 浏览器触发下载
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", "IPIP_NEO_300_Results.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // 启动应用
+        window.onload = renderQuestion;
+    </script>
+</body>
+</html>

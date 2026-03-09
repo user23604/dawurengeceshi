@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>专业大五人格测试 (一键体验版)</title>
+    <style>
+        html, body { height: 100vh; margin: 0; padding: 0; overflow: hidden; background-color: #f0f2f5; font-family: 'PingFang SC', sans-serif; color: #333;}
+        body { display: flex; flex-direction: column; padding-top: 75px; box-sizing: border-box;}
+        
+        .header { position: fixed; top: 0; left: 0; width: 100%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); z-index: 1000; padding: 12px 20px; box-sizing: border-box;}
+        .progress-text { font-size: 14px; font-weight: bold; color: #555; margin-bottom: 8px;}
+        .progress-container { display: flex; width: 100%; height: 8px; border-radius: 4px; overflow: hidden; background: #e0e0e0; gap: 0;}
+        .prog-seg { flex: 1; background: #e0e0e0; transition: background 0.3s ease; }
+        .prog-seg.done { background: #4caf50; }
+        .prog-seg.skip { background: #ffc107; }
+
+        .container { flex: 1; display: flex; flex-direction: column; max-width: 900px; margin: 0 auto; width: 100%; padding: 15px 20px; box-sizing: border-box; min-height: 0;}
+        #quiz-screen { flex: 1; display: flex; flex-direction: column; min-height: 0;}
+        
+        .card { background: #fff; border-radius: 16px; padding: 30px 40px; box-shadow: 0 4px 16px rgba(0,0,0,0.04); flex: 1; display: flex; flex-direction: column; overflow-y: auto; margin-bottom: 20px;}
+        .q-number { font-size: 16px; color: #888; margin-bottom: 15px; letter-spacing: 1px;}
+        .q-title { font-size: 28px; font-weight: bold; margin-bottom: 25px; line-height: 1.4; color: #111;}
+        .q-anchor { font-size: 18px; color: #444; background: #f4f6f8; border-left: 6px solid #2196f3; padding: 15px 20px; margin-bottom: 30px; white-space: pre-line; border-radius: 0 8px 8px 0; line-height: 1.6;}
+        
+        .options-area { margin-top: auto; flex-shrink: 0; display: flex; flex-direction: column; gap: 15px;}
+        .row-half { display: flex; justify-content: space-between; gap: 4%; padding: 0 10%;}
+        .row-int { display: flex; justify-content: space-between; gap: 4%;}
+        
+        .opt-btn { flex: 1; padding: 16px 0; border: 2px solid #e0e0e0; background: #fff; border-radius: 12px; cursor: pointer; font-size: 22px; font-weight: bold; color: #555; transition: all 0.2s; text-align: center;}
+        .opt-btn:hover { background: #f0f5ff; border-color: #2196f3; color: #2196f3;}
+        .opt-btn.selected { background: #2196f3; color: #fff; border-color: #2196f3; box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);}
+        .opt-btn span.label { display: block; font-size: 13px; font-weight: normal; margin-top: 6px; color: #888; }
+        .opt-btn.selected span.label { color: #e3f2fd; }
+
+        .controls { display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; padding-bottom: 10px;}
+        .right-controls { display: flex; gap: 15px; }
+        .nav-btn { background: #fff; border: 1px solid #ccc; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; color: #555; transition: 0.2s; font-weight: bold;}
+        .nav-btn:hover { background: #e0e0e0; }
+        .skip-btn { color: #d84315; border-color: #ffb74d; background: #fff8e1;}
+        .skip-btn:hover { background: #ffecb3; }
+
+        .result-screen { display: none; background: #fff; border-radius: 16px; padding: 40px; overflow-y: auto; height: 100%;}
+        .result-title { font-size: 32px; text-align: center; margin-bottom: 30px;}
+        .result-table { width: 100%; border-collapse: collapse; margin-top: 15px;}
+        .result-table th, .result-table td { border: 1px solid #ddd; padding: 12px; text-align: center;}
+        .result-table th { background-color: #f8f9fa;}
+        .export-btn { padding: 15px 25px; color: white; border-radius: 8px; cursor: pointer; border: none; font-size: 16px; font-weight: bold; margin: 10px; background: #2b3137;}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="progress-text" id="progress-text">加载中...</div>
+        <div class="progress-container" id="progress-bar"></div>
+    </div>
+
+    <div class="container">
+        <div id="quiz-screen">
+            <div class="card" id="question-card"></div>
+            <div class="controls">
+                <button class="nav-btn" id="prev-btn" onclick="app.goPrev()">← 上一题</button>
+                <div class="right-controls">
+                    <button class="nav-btn skip-btn" id="skip-btn" onclick="app.skipQuestion()">跳过 (Skip) ⏭</button>
+                    <button class="nav-btn" id="next-btn" onclick="app.goNext()">下一题 →</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="result-screen" class="result-screen">
+            <h2 class="result-title">测试完成 🎉</h2>
+            <div style="text-align:center;">
+                <button class="export-btn" onclick="app.exportCSV()">📊 导出测试数据 (CSV)</button>
+            </div>
+            <table class="result-table" id="domain-table">
+                <thead><tr><th>特质 (Trait)</th><th>计分题数</th><th>总分</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // 内置微型题库演示 (真实项目请替换为那 300 道题)
+        const demoQuestions = [
+            {"Number": 1, "Sign": "+", "Facet": "N1", "Item": "我总是对事情感到担忧。", "Anchor": "• 容易把小问题往坏处想、反复琢磨\n• 在等待结果或不确定时更难放松"},
+            {"Number": 2, "Sign": "+", "Facet": "E1", "Item": "我很容易交到朋友。", "Anchor": "• 看的是人际温暖与亲近感，而非社交技巧高低\n• 关键词提示：make / friends / easily"},
+            {"Number": 3, "Sign": "+", "Facet": "O1", "Item": "我有丰富的想像力。", "Anchor": "• 经常沉浸在联想/幻想/脑内情境\n• 更容易把普通事物想出新画面或可能性"},
+            {"Number": 4, "Sign": "+", "Facet": "A1", "Item": "我信任他人。", "Anchor": "• 更倾向相信别人是诚恳的（不轻易怀疑动机）"},
+            {"Number": 5, "Sign": "_", "Facet": "C5", "Item": "我在需要做决定时总是拖延。", "Anchor": "• 看的是执行力与抗拖延能力\n• 这是一个反向题（自动计分为 6-X）"}
+        ];
+
+        const app = {
+            questions: demoQuestions,
+            answers: JSON.parse(localStorage.getItem('ipip_demo_answers')) || {},
+            currentIndex: 0,
+            domainMap: { 'N':'神经质', 'E':'外向性', 'O':'开放性', 'A':'宜人性', 'C':'尽责性' },
+
+            init() {
+                this.currentIndex = this.questions.findIndex(q => !this.answers[q.Number] && this.answers[q.Number] !== 'skip');
+                if(this.currentIndex === -1) this.currentIndex = this.questions.length - 1;
+                
+                let html = '';
+                for(let i=0; i<this.questions.length; i++) html += `<div class="prog-seg" id="seg-${this.questions[i].Number}"></div>`;
+                document.getElementById('progress-bar').innerHTML = html;
+                
+                this.renderQuestion();
+            },
+
+            renderQuestion() {
+                if (this.currentIndex >= this.questions.length) return this.showResults();
+
+                const q = this.questions[this.currentIndex];
+                const currentAnswer = this.answers[q.Number];
+                const labels = { 1: "非常不同意", 3: "一般/不确定", 5: "非常同意" };
+
+                document.getElementById('question-card').innerHTML = `
+                    <div class="q-number">题目进度： ${this.currentIndex + 1} / ${this.questions.length}</div>
+                    <div class="q-title">${q.Item}</div>
+                    <div class="q-anchor">${q.Anchor}</div>
+                    <div class="options-area">
+                        <div class="row-half">
+                            ${[1.5, 2.5, 3.5, 4.5].map(v => `<div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" onclick="app.selectOption(${q.Number}, ${v}, this)">${v}</div>`).join('')}
+                        </div>
+                        <div class="row-int">
+                            ${[1, 2, 3, 4, 5].map(v => `<div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" onclick="app.selectOption(${q.Number}, ${v}, this)">${v} ${labels[v] ? `<span class="label">${labels[v]}</span>` : `<span class="label" style="opacity:0;">占位</span>`}</div>`).join('')}
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('prev-btn').style.visibility = (this.currentIndex === 0) ? 'hidden' : 'visible';
+                if (currentAnswer && currentAnswer !== 'skip') {
+                    document.getElementById('next-btn').style.display = 'block';
+                    document.getElementById('skip-btn').style.display = 'none';
+                } else {
+                    document.getElementById('next-btn').style.display = (currentAnswer === 'skip') ? 'block' : 'none';
+                    document.getElementById('skip-btn').style.display = 'block';
+                }
+                this.updateProgress();
+            },
+
+            selectOption(qNumber, value, element) {
+                this.answers[qNumber] = value;
+                localStorage.setItem('ipip_demo_answers', JSON.stringify(this.answers));
+                document.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('selected'));
+                element.classList.add('selected');
+                this.updateProgress();
+                setTimeout(() => this.goNext(), 300);
+            },
+
+            skipQuestion() {
+                this.answers[this.questions[this.currentIndex].Number] = 'skip';
+                localStorage.setItem('ipip_demo_answers', JSON.stringify(this.answers));
+                this.goNext();
+            },
+
+            goPrev() { if(this.currentIndex > 0) { this.currentIndex--; this.renderQuestion(); } },
+            goNext() { 
+                this.currentIndex++; 
+                if(this.currentIndex >= this.questions.length) this.showResults(); 
+                else this.renderQuestion(); 
+            },
+
+            updateProgress() {
+                let answeredCount = 0;
+                this.questions.forEach(q => {
+                    const seg = document.getElementById(`seg-${q.Number}`);
+                    const ans = this.answers[q.Number];
+                    seg.className = 'prog-seg'; 
+                    if (ans === 'skip') seg.classList.add('skip');
+                    else if (ans !== undefined) { seg.classList.add('done'); answeredCount++; }
+                });
+                document.getElementById('progress-text').innerText = `已答 ${answeredCount} / ${this.questions.length} 题 (部分跳过)`;
+            },
+
+            showResults() {
+                document.getElementById('quiz-screen').style.display = 'none';
+                document.getElementById('result-screen').style.display = 'block';
+                let stats = { N:{s:0,c:0}, E:{s:0,c:0}, O:{s:0,c:0}, A:{s:0,c:0}, C:{s:0,c:0} };
+                
+                this.questions.forEach(q => {
+                    let ans = this.answers[q.Number];
+                    if(ans && ans !== 'skip') {
+                        let scored = q.Sign === "_" ? 6 - ans : ans;
+                        stats[q.Facet.charAt(0)].s += scored;
+                        stats[q.Facet.charAt(0)].c += 1;
+                    }
+                });
+
+                let html = "";
+                for (let d in stats) {
+                    if(stats[d].c > 0) html += `<tr><td><strong>${this.domainMap[d]}</strong></td><td>${stats[d].c}</td><td>${stats[d].s}</td></tr>`;
+                }
+                document.querySelector('#domain-table tbody').innerHTML = html;
+            },
+
+            exportCSV() {
+                let csv = "\uFEFF题号,分面,原始分\n";
+                this.questions.forEach(q => csv += `${q.Number},${q.Facet},${this.answers[q.Number]||'未答'}\n`);
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+                link.download = "测试记录.csv";
+                link.click();
+            }
+        };
+
+        window.onload = () => app.init();
+    </script>
+</body>
+</html>
