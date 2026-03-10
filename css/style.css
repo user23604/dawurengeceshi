@@ -1,8 +1,8 @@
 /* 使用 100dvh 解决手机浏览器地址栏遮挡底部的问题 */
-html, body { height: 100%; height: 100dvh; margin: 0; padding: 0; overflow: hidden; background-color: #f0f2f5; font-family: 'PingFang SC', sans-serif; color: #333;}
+html, body { height: 100%; height: 100dvh; margin: 0; padding: 0; overflow: hidden; background-color: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; color: #333;}
 body { display: flex; flex-direction: column; padding-top: 65px; box-sizing: border-box;}
 
-.header { position: fixed; top: 0; left: 0; width: 100%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); z-index: 1000; padding: 12px 20px; box-sizing: border-box;}
+.header { position: fixed; top: 0; left: 0; width: 100%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); z-index: 1000; padding: 10px 15px; box-sizing: border-box;}
 .progress-text { font-size: 14px; font-weight: bold; color: #555; margin-bottom: 8px;}
 .progress-container { display: flex; width: 100%; height: 8px; border-radius: 4px; overflow: hidden; background: #e0e0e0; gap: 0;}
 .prog-seg { flex: 1; background: #e0e0e0; transition: background 0.3s ease; }
@@ -13,38 +13,65 @@ body { display: flex; flex-direction: column; padding-top: 65px; box-sizing: bor
 #quiz-screen { flex: 1; display: flex; flex-direction: column; min-height: 0;}
 
 .card { background: #fff; border-radius: 12px; padding: 25px 30px; box-shadow: 0 4px 16px rgba(0,0,0,0.04); flex: 1; display: flex; flex-direction: column; overflow-y: auto; margin-bottom: 15px;}
-.q-number { font-size: 14px; color: #888; margin-bottom: 10px; letter-spacing: 1px;}
-.q-title { font-size: 24px; font-weight: bold; margin-bottom: 20px; line-height: 1.4; color: #111;}
-.q-anchor { font-size: 16px; color: #444; background: #f4f6f8; border-left: 5px solid #2196f3; padding: 12px 15px; margin-bottom: 20px; white-space: pre-line; border-radius: 0 6px 6px 0; line-height: 1.5;}
+.q-number { font-size: 15px; color: #888; margin-bottom: 15px; letter-spacing: 1px; font-weight: bold;}
+
+/* 题目字体加大、加粗、字间距调宽 */
+.q-title { font-size: 26px; font-weight: 800; margin-bottom: 25px; line-height: 1.5; color: #111; letter-spacing: 1px;}
+
+/* 完美悬挂缩进排版 */
+.q-anchor { 
+    font-size: 18px; 
+    font-weight: 600; /* 加粗防疲劳 */
+    letter-spacing: 0.5px;
+    color: #333; 
+    background: #f4f6f8; 
+    border-left: 5px solid #2196f3; 
+    padding: 15px 15px 15px 30px; /* 左侧留出空间给缩进 */
+    margin-bottom: 30px; 
+    white-space: pre-wrap; 
+    border-radius: 0 8px 8px 0; 
+    line-height: 1.6;
+    text-indent: -16px; /* 核心魔法：把第一行的圆点拉出去，实现上下行文字平齐对齐 */
+}
 
 .options-area { margin-top: auto; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px;}
 .row-half { display: flex; justify-content: space-between; gap: 4%; padding: 0 10%;}
 .row-int { display: flex; justify-content: space-between; gap: 4%;}
 
-.opt-btn { flex: 1; padding: 12px 0; border: 2px solid #e0e0e0; background: #fff; border-radius: 10px; cursor: pointer; font-size: 20px; font-weight: bold; color: #555; transition: all 0.2s; text-align: center;}
+/* 按钮字号调整 */
+.opt-btn { flex: 1; padding: 12px 0; border: 2px solid #e0e0e0; background: #fff; border-radius: 10px; cursor: pointer; font-size: 20px; font-weight: bold; color: #555; transition: all 0.15s ease-in-out; text-align: center;}
 .opt-btn:hover { background: #f0f5ff; border-color: #2196f3; color: #2196f3;}
+.opt-btn:active { transform: scale(0.95); }
 .opt-btn.selected { background: #2196f3; color: #fff; border-color: #2196f3; box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);}
-.opt-btn span.label { display: block; font-size: 12px; font-weight: normal; margin-top: 4px; color: #888; }
+.opt-btn span.label { display: block; font-size: 12px; font-weight: 600; margin-top: 4px; color: #888; letter-spacing: 0.5px; }
 .opt-btn.selected span.label { color: #e3f2fd; }
 
 .controls { display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; padding-bottom: 15px; padding-top: 5px;}
 .right-controls { display: flex; gap: 10px; }
-.nav-btn { background: #fff; border: 1px solid #ccc; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 15px; color: #555; transition: 0.2s; font-weight: bold;}
+.nav-btn { background: #fff; border: 1px solid #ccc; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; color: #555; font-weight: bold;}
 .skip-btn { color: #d84315; border-color: #ffb74d; background: #fff8e1;}
 
-/* 专门针对手机屏幕的极致压榨空间 */
+/* 手机端极致排版，减少无用边距 */
 @media (max-width: 600px) {
     body { padding-top: 60px; }
     .header { padding: 8px 10px; }
-    .container { padding: 5px 10px; }
-    .card { padding: 15px 15px; border-radius: 10px;}
-    .q-title { font-size: 20px; margin-bottom: 15px;}
-    .q-anchor { font-size: 15px; padding: 10px 12px; margin-bottom: 15px;}
+    .container { padding: 5px 8px; }
+    .card { padding: 18px 15px; border-radius: 10px;}
+    .q-title { font-size: 22px; margin-bottom: 18px;}
+    .q-anchor { font-size: 17px; padding: 12px 12px 12px 26px; margin-bottom: 20px; text-indent: -14px; }
     .opt-btn { padding: 10px 0; font-size: 18px; }
     .opt-btn span.label { font-size: 11px; }
     .row-half { padding: 0 5%; }
-    .nav-btn { padding: 10px 12px; font-size: 14px;}
+    .nav-btn { padding: 10px 14px; font-size: 15px;}
 }
+
+/* 动画效果 */
+@keyframes slideInFromRight { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slideInFromLeft { from { transform: translateX(-40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.slide-in-right { animation: slideInFromRight 0.2s ease-out; }
+.slide-in-left { animation: slideInFromLeft 0.2s ease-out; }
+.fade-in { animation: fadeIn 0.2s ease-out; }
 
 /* 结果区样式 */
 .result-screen { display: none; background: #fff; border-radius: 16px; padding: 30px 20px; overflow-y: auto; height: 100%;}
@@ -53,25 +80,3 @@ body { display: flex; flex-direction: column; padding-top: 65px; box-sizing: bor
 .result-table th, .result-table td { border: 1px solid #ddd; padding: 10px; text-align: center;}
 .result-table th { background-color: #f8f9fa;}
 .export-btn { padding: 12px 15px; color: white; border-radius: 8px; cursor: pointer; border: none; font-size: 14px; font-weight: bold; margin: 5px; background: #2b3137;}
-
-/* ================= 新增：卡片滑动切换动画 ================= */
-@keyframes slideInFromRight {
-    from { transform: translateX(60px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-@keyframes slideInFromLeft {
-    from { transform: translateX(-60px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-}
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-.slide-in-right { animation: slideInFromRight 0.25s ease-out; }
-.slide-in-left { animation: slideInFromLeft 0.25s ease-out; }
-.fade-in { animation: fadeIn 0.3s ease-out; }
-
-/* 专门美化一下选项按钮，让点击也更跟手 */
-.opt-btn { transition: all 0.15s ease-in-out; }
-.opt-btn:active { transform: scale(0.95); }

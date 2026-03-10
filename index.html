@@ -9,7 +9,10 @@
 <body>
     <div class="header">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div class="progress-text" id="progress-text">加载中...</div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <div class="progress-text" id="progress-text" style="margin-bottom: 0;">加载中...</div>
+                <span id="sync-status" style="font-size: 12px; font-weight: bold;"></span>
+            </div>
             <div style="display: flex; gap: 5px;">
                 <button onclick="app.exportSaveCode()" style="padding: 4px 8px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 12px;">📤 导出</button>
                 <button onclick="app.importSaveCode()" style="padding: 4px 8px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 12px;">📥 导入</button>

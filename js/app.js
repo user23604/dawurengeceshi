@@ -2,7 +2,7 @@ const app = {
     questions: [],
     answers: {},
     currentIndex: 0,
-    slideDirection: '', // 记录滑动方向用于播放动画
+    slideDirection: '',
     domainMap: { 'N':'神经质', 'E':'外向性', 'O':'开放性', 'A':'宜人性', 'C':'尽责性' },
     
     gistConfig: {
@@ -11,7 +11,6 @@ const app = {
     },
 
     async init() {
-        // 暗号逻辑
         const urlParams = new URLSearchParams(window.location.search);
         const keyFromUrl = urlParams.get('key');
         const CORRECT_KEY = '11115555';
@@ -30,7 +29,6 @@ const app = {
             return;
         }
 
-        // 注册滑动事件
         this.initSwipeGesture();
 
         try {
@@ -54,11 +52,10 @@ const app = {
         }
     },
 
-    // --- 优化：手势滑动逻辑 ---
     initSwipeGesture() {
         let touchstartX = 0;
         let touchstartY = 0;
-        const threshold = 40; // 灵敏度大幅提升：只需滑动 40 像素即可触发
+        const threshold = 40; 
         
         document.addEventListener('touchstart', e => {
             touchstartX = e.changedTouches[0].screenX;
@@ -69,19 +66,12 @@ const app = {
             const touchendX = e.changedTouches[0].screenX;
             const touchendY = e.changedTouches[0].screenY;
             
-            // 防误触：判断是横向滑还是纵向滚网页
             if (Math.abs(touchendX - touchstartX) > Math.abs(touchendY - touchstartY)) {
                 if (touchstartX - touchendX > threshold) {
-                    // 向左滑：下一题 或 跳过
                     const ans = this.answers[this.questions[this.currentIndex].Number];
-                    if (ans && ans !== 'skip') {
-                        this.goNext();
-                    } else {
-                        this.skipQuestion();
-                    }
+                    if (ans && ans !== 'skip') this.goNext(); else this.skipQuestion();
                 }
                 if (touchendX - touchstartX > threshold) {
-                    // 向右滑：上一题
                     this.goPrev();
                 }
             }
@@ -89,8 +79,10 @@ const app = {
     },
 
     async loadFromGist() {
+        const statusEl = document.getElementById('sync-status');
+        if(statusEl) statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 拉取云端中...</span>";
         try {
-            // 【关键修改】：加入时间戳 (t=...) 和 no-cache 请求头，强制 GitHub 不准用旧缓存
+            // 加入时间戳强制穿透 GitHub 缓存，解决两端不一致问题
             const url = `https://api.github.com/gists/${this.gistConfig.id}?t=${new Date().getTime()}`;
             const res = await fetch(url, {
                 headers: { 
@@ -98,32 +90,38 @@ const app = {
                     'Cache-Control': 'no-cache'
                 }
             });
-            if (!res.ok) throw new Error("验证失败或Token不正确");
+            if (!res.ok) throw new Error("验证失败");
             const data = await res.json();
             const content = data.files['ipip_answers.json'].content;
             this.answers = JSON.parse(content);
             localStorage.setItem('ipip_answers', content);
-            console.log("✅ 云端同步成功（已绕过缓存）");
+            if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 云端已同步</span>";
         } catch (e) {
             console.error("云端加载失败", e);
+            if(statusEl) statusEl.innerHTML = "<span style='color:#d32f2f;'>❌ 同步失败，使用本地</span>";
             this.answers = JSON.parse(localStorage.getItem('ipip_answers')) || {};
         }
     },
 
     async saveToGist() {
         if (!this.gistConfig.id || !this.gistConfig.token) return;
+        const statusEl = document.getElementById('sync-status');
+        if(statusEl) statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 正在保存...</span>";
         try {
-            await fetch(`https://api.github.com/gists/${this.gistConfig.id}`, {
+            const res = await fetch(`https://api.github.com/gists/${this.gistConfig.id}`, {
                 method: 'PATCH',
                 headers: { 'Authorization': `token ${this.gistConfig.token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ files: { 'ipip_answers.json': { content: JSON.stringify(this.answers) } } })
             });
-        } catch (e) { console.error("云端保存失败", e); }
+            if (!res.ok) throw new Error("保存失败");
+            if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已云端保存</span>";
+        } catch (e) { 
+            console.error("云端保存失败", e); 
+            if(statusEl) statusEl.innerHTML = "<span style='color:#d32f2f;'>❌ 保存失败</span>";
+        }
     },
 
-    // --- 彻底解决浏览器拦截：漂亮的自定义弹窗 ---
     setupGist() {
-        // 先移除可能残余的旧弹窗
         let oldModal = document.getElementById('gist-modal');
         if (oldModal) oldModal.remove();
 
@@ -149,7 +147,7 @@ const app = {
         if (id && token) {
             localStorage.setItem('gist_id', id);
             localStorage.setItem('gist_token', token);
-            alert("✅ 配置保存成功！马上刷新并同步。");
+            alert("✅ 配置保存成功！");
             location.reload();
         } else {
             alert("❌ ID 和 Token 不能为空！");
@@ -167,18 +165,21 @@ const app = {
 
         const q = this.questions[this.currentIndex];
         const currentAnswer = this.answers[q.Number];
-        const labels = { 1: "非常不同意", 3: "一般/不确定", 5: "非常同意" };
+        
+        // 核心修改：补全所有的注释小字
+        const labels = { 1: "非常不同意", 2: "不同意", 3: "一般/不确定", 4: "同意", 5: "非常同意" };
 
+        // 核心修改：将 row-int (整数行) 调换到了 row-half (小数行) 的上方
         let html = `
             <div class="q-number">题目进度： ${this.currentIndex + 1} / ${this.questions.length}</div>
             <div class="q-title">${q.Item}</div>
             <div class="q-anchor">${q.Anchor}</div>
             <div class="options-area">
+                <div class="row-int">
+                    ${[1, 2, 3, 4, 5].map(v => `<div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" onclick="app.selectOption(${q.Number}, ${v}, this)">${v} <span class="label">${labels[v]}</span></div>`).join('')}
+                </div>
                 <div class="row-half">
                     ${[1.5, 2.5, 3.5, 4.5].map(v => `<div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" onclick="app.selectOption(${q.Number}, ${v}, this)">${v}</div>`).join('')}
-                </div>
-                <div class="row-int">
-                    ${[1, 2, 3, 4, 5].map(v => `<div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" onclick="app.selectOption(${q.Number}, ${v}, this)">${v} ${labels[v] ? `<span class="label">${labels[v]}</span>` : `<span class="label" style="opacity:0;">占位</span>`}</div>`).join('')}
                 </div>
             </div>
         `;
@@ -186,19 +187,17 @@ const app = {
         const card = document.getElementById('question-card');
         card.innerHTML = html;
 
-        // --- 触发动画的核心逻辑 ---
         card.classList.remove('slide-in-right', 'slide-in-left', 'fade-in');
-        void card.offsetWidth; // 魔法代码：强制浏览器重绘以触发动画
+        void card.offsetWidth; 
         
         if (this.slideDirection === 'left') {
-            card.classList.add('slide-in-right'); // 题目从右侧滑进（下一题）
+            card.classList.add('slide-in-right'); 
         } else if (this.slideDirection === 'right') {
-            card.classList.add('slide-in-left'); // 题目从左侧滑进（上一题）
+            card.classList.add('slide-in-left'); 
         } else {
-            card.classList.add('fade-in'); // 第一次加载时仅淡入
+            card.classList.add('fade-in'); 
         }
-        this.slideDirection = ''; // 播放完动画后重置方向
-        // -------------------------
+        this.slideDirection = ''; 
 
         document.getElementById('prev-btn').style.visibility = (this.currentIndex === 0) ? 'hidden' : 'visible';
         if (currentAnswer && currentAnswer !== 'skip') {
@@ -217,28 +216,28 @@ const app = {
         document.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('selected'));
         element.classList.add('selected');
         this.updateProgress();
-        this.saveToGist(); // 后台静默保存到云端
+        this.saveToGist(); // 触发上传，顶部会有提示
         setTimeout(() => this.goNext(), 300);
     },
 
     skipQuestion() {
         this.answers[this.questions[this.currentIndex].Number] = 'skip';
         localStorage.setItem('ipip_answers', JSON.stringify(this.answers));
-        this.saveToGist(); // 同步跳过状态到云端
+        this.saveToGist(); 
         this.goNext();
     },
 
     goPrev() { 
         if(this.currentIndex > 0) { 
             this.currentIndex--; 
-            this.slideDirection = 'right'; // 记录动作方向为向右回退
+            this.slideDirection = 'right'; 
             this.renderQuestion(); 
         } 
     },
     
     goNext() { 
         this.currentIndex++; 
-        this.slideDirection = 'left'; // 记录动作方向为向左前进
+        this.slideDirection = 'left'; 
         if(this.currentIndex >= this.questions.length) this.showResults(); 
         else this.renderQuestion(); 
     },
@@ -253,7 +252,7 @@ const app = {
             if (ans === 'skip') seg.classList.add('skip');
             else if (ans !== undefined) { seg.classList.add('done'); answeredCount++; }
         });
-        document.getElementById('progress-text').innerText = `已答 ${answeredCount} / ${this.questions.length} 题`;
+        document.getElementById('progress-text').innerText = `已答 ${answeredCount} / ${this.questions.length}`;
     },
 
     exportSaveCode() {
