@@ -11,6 +11,9 @@ const app = {
         token: localStorage.getItem('gist_token') || ''
     },
 
+    // 🌟 新增：云同步防抖定时器，防止频控封禁
+    saveTimeout: null,
+
     async init() {
         const urlParams = new URLSearchParams(window.location.search);
         const keyFromUrl = urlParams.get('key');
@@ -58,12 +61,11 @@ const app = {
     // --- 数据兼容与读写引擎 ---
     loadLocalData() {
         const localData = JSON.parse(localStorage.getItem('ipip_answers')) || {};
-        // 兼容新老数据格式
         if (localData.answers !== undefined) {
             this.answers = localData.answers;
             this.doubts = localData.doubts || {};
         } else {
-            this.answers = localData; // 旧版只存了答案字典
+            this.answers = localData; 
             this.doubts = {};
         }
     },
@@ -72,7 +74,19 @@ const app = {
         localStorage.setItem('ipip_answers', JSON.stringify({ answers: this.answers, doubts: this.doubts }));
     },
 
-    // 内部封装：带超时的 Fetch (增强鲁棒性，防止弱网环境无限卡死)
+    // 🌟 新增：智能延迟同步引擎 (节流与防抖)，彻底杜绝 403 错误
+    triggerCloudSave() {
+        const statusEl = document.getElementById('sync-status');
+        if(statusEl) statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 暂存本地...</span>";
+        
+        if (this.saveTimeout) clearTimeout(this.saveTimeout);
+        
+        // 等待 2.5 秒用户无操作后，再向 GitHub 批量推送
+        this.saveTimeout = setTimeout(() => {
+            this.saveToGist();
+        }, 2500);
+    },
+
     async fetchWithTimeout(url, options, timeout = 10000) {
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeout);
@@ -98,10 +112,9 @@ const app = {
             const cleanToken = this.gistConfig.token.trim();
             const url = `https://api.github.com/gists/${cleanId}?t=${new Date().getTime()}`;
             
-            // 使用自定义带超时的 fetch，去掉了惹祸的 Cache-Control
             const res = await this.fetchWithTimeout(url, { 
-                headers: { 'Authorization': `token ${cleanToken}` }
-            }, 10000); // 10秒超时
+                headers: { 'Authorization': `Bearer ${cleanToken}` } // 规范使用 Bearer
+            }, 10000);
             
             if (!res.ok) throw new Error(`HTTP状态码 ${res.status}`);
             
@@ -116,12 +129,36 @@ const app = {
                 throw new Error("云端数据 JSON 解析失败");
             }
             
-            // 防御性合并：只有云端数据存在且合法时，才覆盖本地
             if (content && typeof content === 'object') {
-                this.answers = content.answers !== undefined ? content.answers : content;
-                this.doubts = content.doubts || content["疑问"] || {};
+                const cloudAnswers = content.answers !== undefined ? content.answers : content;
+                const cloudDoubts = content.doubts || content["疑问"] || {};
+
+                // 🌟 核心：进度护城河仲裁引擎
+                const cloudCount = Object.keys(cloudAnswers).length;
+                const localCount = Object.keys(this.answers).length;
+
+                if (localCount > cloudCount) {
+                    // 本地领先，防覆盖拦截！
+                    const userChoice = confirm(`⚠️ 发现进度冲突！\n\n当前设备已答：${localCount} 题\n云端备份已答：${cloudCount} 题\n\n当前设备的进度更超前！\n\n点击“确定”用本机进度强行覆盖云端。\n点击“取消”强制退回云端旧数据（警告：将丢失本地多做的题！）。`);
+                    if (userChoice) {
+                        this.triggerCloudSave(); // 选确定，反向推送到云端
+                        if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 准备同步新进度</span>";
+                        return; // 中断，绝不执行后续的覆盖本地操作
+                    }
+                }
+
+                // 安全覆盖
+                this.answers = cloudAnswers;
+                this.doubts = cloudDoubts;
                 this.saveLocalData();
+                
                 if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 云端已同步</span>";
+                
+                // 如果题板已经存在，刷新界面展现最新进度
+                if(document.getElementById('question-card').innerHTML !== '') {
+                    this.updateProgress();
+                    this.renderQuestion();
+                }
             } else {
                 throw new Error("云端数据结构异常");
             }
@@ -133,7 +170,7 @@ const app = {
                 let errorMsg = e.name === 'AbortError' ? '请求超时，请检查网络环境' : e.message;
                 statusEl.onclick = () => alert(`🚨 拉取失败 🚨\n\n原因: ${errorMsg}\n已自动回退使用本地缓存数据。`);
             }
-            this.loadLocalData(); // 失败时安全回退
+            this.loadLocalData(); 
         }
     },
 
@@ -141,7 +178,7 @@ const app = {
         if (!this.gistConfig.id || !this.gistConfig.token) return;
         const statusEl = document.getElementById('sync-status');
         if(statusEl) {
-            statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 正在保存...</span>";
+            statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 正在上传...</span>";
             statusEl.onclick = null;
         }
         
@@ -153,21 +190,21 @@ const app = {
             const res = await this.fetchWithTimeout(`https://api.github.com/gists/${cleanId}`, {
                 method: 'PATCH',
                 headers: { 
-                    'Authorization': `token ${cleanToken}`, 
+                    'Authorization': `Bearer ${cleanToken}`, 
                     'Content-Type': 'application/json' 
                 },
                 body: JSON.stringify({ files: { 'ipip_answers.json': { content: JSON.stringify(payload) } } })
-            }, 10000); // 10秒超时
+            }, 10000);
             
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已云端保存</span>";
+            if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 进度已上云</span>";
             
         } catch (e) { 
             console.error("【同步保存异常】", e);
             if(statusEl) {
-                statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer; text-decoration:underline;'>❌ 保存失败(点我查看)</span>";
+                statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer; text-decoration:underline;'>❌ 上传失败(点我查看)</span>";
                 let errorMsg = e.name === 'AbortError' ? '请求超时' : e.message;
-                statusEl.onclick = () => alert(`🚨 保存失败 🚨\n\n原因: ${errorMsg}\n进度已保存在本地，网络恢复后请手动点击云同步。`);
+                statusEl.onclick = () => alert(`🚨 保存失败 🚨\n\n原因: ${errorMsg}\n\n不用担心！进度已安全保存在本机，网络畅通后重新点击上方【云同步】按钮即可补救。`);
             }
         }
     },
@@ -225,25 +262,19 @@ const app = {
         const currentAnswer = this.answers[q.Number];
         const labels = { 1: "非常不同意", 2: "不同意", 3: "一般/不确定", 4: "同意", 5: "非常同意" };
 
-        // 终极完美解析排版引擎 (智能识别圆点并强制换行，Flexbox 悬挂缩进)
-        // 1. 无论有没有 \n，只要遇到 • 就强行在它前面加个换行符
         const rawAnchor = (q.Anchor || '').replace(/\\n/g, '\n').replace(/•/g, '\n•'); 
-        
         const parsedAnchor = rawAnchor.split('\n').map(line => {
             line = line.trim();
             if(!line) return '';
             if(line.startsWith('•')) {
-                // 图二效果：悬挂缩进，文字对齐，左侧留白
                 return `<div style="display: flex; align-items: flex-start; margin-bottom: 12px;">
                             <span style="color: #8c9eff; margin-right: 12px; font-weight: bold; font-size: 18px; line-height: 1.6;">•</span>
                             <span style="flex: 1; line-height: 1.6; color: #333333; text-align: justify;">${line.substring(1).trim()}</span>
                         </div>`;
             }
-            // 非圆点文本的常规显示
             return `<div style="margin-bottom: 8px; line-height: 1.6; color: #555;">${line}</div>`;
         }).join('');
 
-        // 疑问区状态
         const hasDoubt = this.doubts[q.Number] !== undefined;
         const doubtText = hasDoubt ? this.doubts[q.Number] : '';
 
@@ -292,18 +323,16 @@ const app = {
         this.updateProgress();
     },
 
-    // --- 新增：疑问功能交互 ---
     toggleDoubt(qNumber) {
         if (this.doubts[qNumber] !== undefined) {
-            delete this.doubts[qNumber]; // 取消疑问
+            delete this.doubts[qNumber]; 
         } else {
-            this.doubts[qNumber] = ""; // 激活疑问框
+            this.doubts[qNumber] = ""; 
         }
         this.saveLocalData();
-        this.saveToGist();
-        this.renderQuestion(); // 重新渲染刷新 UI
+        this.triggerCloudSave(); // 替换为防抖保存
+        this.renderQuestion(); 
         
-        // 如果是展开框，自动聚焦输入
         if (this.doubts[qNumber] !== undefined) {
             setTimeout(() => document.getElementById(`doubt-input-${qNumber}`).focus(), 50);
         }
@@ -313,24 +342,21 @@ const app = {
         if (this.doubts[qNumber] !== undefined) {
             this.doubts[qNumber] = text.trim();
             this.saveLocalData();
-            this.saveToGist();
+            this.triggerCloudSave(); // 替换为防抖保存
         }
     },
 
-    // --- 修复：反选 Bug ---
     selectOption(qNumber, value, element) {
-        // 如果点击的是已经选中的答案 -> 执行取消选择
         if (this.answers[qNumber] === value) {
             delete this.answers[qNumber];
             element.classList.remove('selected');
             this.saveLocalData();
             this.updateProgress();
-            this.saveToGist();
-            this.renderQuestion(); // 刷新以重置下方按钮状态
+            this.triggerCloudSave(); // 替换为防抖保存
+            this.renderQuestion(); 
             return;
         }
 
-        // 正常选择
         this.answers[qNumber] = value;
         this.saveLocalData();
         
@@ -338,14 +364,14 @@ const app = {
         element.classList.add('selected');
         
         this.updateProgress();
-        this.saveToGist(); 
+        this.triggerCloudSave(); // 替换为防抖保存
         setTimeout(() => this.goNext(), 300);
     },
 
     skipQuestion() {
         this.answers[this.questions[this.currentIndex].Number] = 'skip';
         this.saveLocalData();
-        this.saveToGist(); 
+        this.triggerCloudSave(); // 替换为防抖保存
         this.goNext();
     },
 
@@ -378,17 +404,23 @@ const app = {
     },
 
     exportSaveCode() {
-        if (Object.keys(this.answers).length === 0) return alert("暂无记录！");
-        const payload = { answers: this.answers, doubts: this.doubts };
-        const code = btoa(JSON.stringify(payload));
-        navigator.clipboard.writeText(code).then(() => alert("✅ 进度码已复制！")).catch(() => prompt("手动复制：", code));
+        try {
+            if (Object.keys(this.answers).length === 0) return alert("暂无记录！");
+            const payload = { answers: this.answers, doubts: this.doubts };
+            // 🌟 修复底层 Bug：先用 encodeURIComponent 转义中文，再 btoa
+            const code = btoa(encodeURIComponent(JSON.stringify(payload)));
+            navigator.clipboard.writeText(code).then(() => alert("✅ 进度码已复制！可发送给其他设备。")).catch(() => prompt("请手动复制以下进度码：", code));
+        } catch (e) {
+            alert(`❌ 导出失败：${e.message}`);
+        }
     },
 
     importSaveCode() {
         const code = prompt("粘贴进度码：");
         if (!code) return;
         try {
-            const content = JSON.parse(atob(code));
+            // 🌟 修复底层 Bug：先 atob，再 decodeURIComponent 解码中文
+            const content = JSON.parse(decodeURIComponent(atob(code)));
             if (content.answers !== undefined) {
                 this.answers = content.answers;
                 this.doubts = content.doubts || {};
@@ -397,9 +429,10 @@ const app = {
                 this.doubts = {};
             }
             this.saveLocalData();
-            this.saveToGist();
+            this.triggerCloudSave(); // 导入后自动触发防抖云同步
+            alert("✅ 导入成功！正在刷新页面...");
             location.reload(); 
-        } catch (e) { alert("❌ 损坏的进度码"); }
+        } catch (e) { alert("❌ 损坏的进度码，无法识别。"); }
     },
 
     calculateScores() {
@@ -413,7 +446,6 @@ const app = {
                 domainStats[q.Facet.charAt(0)].sum += scored;
                 domainStats[q.Facet.charAt(0)].count += 1;
                 
-                // 导出数据时，加入疑问备注
                 const doubt = this.doubts[q.Number] || '';
                 itemResults.push({ Number: q.Number, Facet: q.Facet, Sign: q.Sign, Raw: ans, Scored: scored, Doubt: doubt, Item: q.Item });
             }
@@ -433,7 +465,6 @@ const app = {
     },
 
     exportCSV() {
-        // 更新了表头，加入了“疑问备注”列
         let csv = "\uFEFF题号,分面,方向,原始分,计分,疑问备注,题目\n";
         this.calculateScores().itemResults.forEach(r => csv += `${r.Number},${r.Facet},${r.Sign},${r.Raw},${r.Scored},${r.Doubt.replace(/,/g, "，")},${r.Item.replace(/,/g, "，")}\n`);
         const link = document.createElement("a");
