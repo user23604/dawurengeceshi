@@ -72,70 +72,68 @@ const app = {
         localStorage.setItem('ipip_answers', JSON.stringify({ answers: this.answers, doubts: this.doubts }));
     },
 
+    // 内部封装：带超时的 Fetch (增强鲁棒性，防止弱网环境无限卡死)
+    async fetchWithTimeout(url, options, timeout = 10000) {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeout);
+        try {
+            const response = await fetch(url, { ...options, signal: controller.signal });
+            clearTimeout(id);
+            return response;
+        } catch (error) {
+            clearTimeout(id);
+            throw error;
+        }
+    },
+
     async loadFromGist() {
         const statusEl = document.getElementById('sync-status');
         if(statusEl) {
             statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 拉取云端中...</span>";
-            statusEl.onclick = null; // 清除之前的点击事件
+            statusEl.onclick = null;
         }
         
         try {
-            // 自动清理可能不小心多复制的空格或换行
             const cleanId = this.gistConfig.id.trim();
             const cleanToken = this.gistConfig.token.trim();
-            
             const url = `https://api.github.com/gists/${cleanId}?t=${new Date().getTime()}`;
-            const res = await fetch(url, { 
-                headers: { 
-                    'Authorization': `token ${cleanToken}`, 
-                }
-            });
             
-            // 核心捕获 1：如果 GitHub 拒绝，直接提取官方报错详情
-            if (!res.ok) {
-                const errText = await res.text();
-                throw new Error(`HTTP状态码 ${res.status}\n接口原始返回: ${errText}`);
-            }
+            // 使用自定义带超时的 fetch，去掉了惹祸的 Cache-Control
+            const res = await this.fetchWithTimeout(url, { 
+                headers: { 'Authorization': `token ${cleanToken}` }
+            }, 10000); // 10秒超时
+            
+            if (!res.ok) throw new Error(`HTTP状态码 ${res.status}`);
             
             const data = await res.json();
-            if (!data.files || !data.files['ipip_answers.json']) {
-                throw new Error("云端 Gist 中没找到 ipip_answers.json 文件，请检查 Gist ID 是否填错。");
-            }
+            if (!data.files || !data.files['ipip_answers.json']) throw new Error("云端无对应文件");
 
             const rawContent = data.files['ipip_answers.json'].content;
             let content;
-            
-            // 核心捕获 2：防止 Edge 翻译插件导致的 JSON 格式损坏
             try {
                 content = JSON.parse(rawContent);
-            } catch (parseErr) {
-                throw new Error(`JSON解析失败，云端数据格式可能已损坏！\n系统报错: ${parseErr.message}\n截取的部分数据: ${rawContent.substring(0, 80)}...`);
+            } catch (e) {
+                throw new Error("云端数据 JSON 解析失败");
             }
             
-            if (content.answers !== undefined) {
-                this.answers = content.answers;
-                // 兼容一下如果真的被 Edge 翻译成中文的情况
+            // 防御性合并：只有云端数据存在且合法时，才覆盖本地
+            if (content && typeof content === 'object') {
+                this.answers = content.answers !== undefined ? content.answers : content;
                 this.doubts = content.doubts || content["疑问"] || {};
+                this.saveLocalData();
+                if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 云端已同步</span>";
             } else {
-                this.answers = content;
-                this.doubts = {};
+                throw new Error("云端数据结构异常");
             }
-            this.saveLocalData();
-            if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 云端已同步</span>";
             
         } catch (e) {
-            console.error("【拉取调试日志】", e);
-            
-            // 强提醒：状态栏变红，并支持点击再次查看
+            console.error("【同步拉取异常】", e);
             if(statusEl) {
                 statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer; text-decoration:underline;'>❌ 同步失败(点我查看)</span>";
-                statusEl.onclick = () => alert(`🚨 拉取失败详细报告 🚨\n\n${e.message}`);
+                let errorMsg = e.name === 'AbortError' ? '请求超时，请检查网络环境' : e.message;
+                statusEl.onclick = () => alert(`🚨 拉取失败 🚨\n\n原因: ${errorMsg}\n已自动回退使用本地缓存数据。`);
             }
-            
-            // 第一次失败时直接砸到脸上
-            alert(`🚨 同步拉取失败 🚨\n\n详细原因：\n${e.message}\n\n排雷指南：\n1. 如果显示 "Failed to fetch"，百分百是当前浏览器没走代理，被墙了。\n2. 如果显示 "HTTP 401"，说明当前浏览器里存的 Token 填错了或者过期了。\n3. 如果显示 "HTTP 404"，说明 Gist ID 错了。`);
-            
-            this.loadLocalData();
+            this.loadLocalData(); // 失败时安全回退
         }
     },
 
@@ -148,33 +146,29 @@ const app = {
         }
         
         try {
+            const payload = { answers: this.answers, doubts: this.doubts };
             const cleanId = this.gistConfig.id.trim();
             const cleanToken = this.gistConfig.token.trim();
             
-            const payload = { answers: this.answers, doubts: this.doubts };
-            const res = await fetch(`https://api.github.com/gists/${cleanId}`, {
+            const res = await this.fetchWithTimeout(`https://api.github.com/gists/${cleanId}`, {
                 method: 'PATCH',
                 headers: { 
                     'Authorization': `token ${cleanToken}`, 
                     'Content-Type': 'application/json' 
                 },
                 body: JSON.stringify({ files: { 'ipip_answers.json': { content: JSON.stringify(payload) } } })
-            });
+            }, 10000); // 10秒超时
             
-            if (!res.ok) {
-                const errText = await res.text();
-                throw new Error(`HTTP状态码 ${res.status}\n接口原始返回: ${errText}`);
-            }
-            
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已云端保存</span>";
             
         } catch (e) { 
-            console.error("【保存调试日志】", e);
+            console.error("【同步保存异常】", e);
             if(statusEl) {
                 statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer; text-decoration:underline;'>❌ 保存失败(点我查看)</span>";
-                statusEl.onclick = () => alert(`🚨 保存失败详细报告 🚨\n\n${e.message}`);
+                let errorMsg = e.name === 'AbortError' ? '请求超时' : e.message;
+                statusEl.onclick = () => alert(`🚨 保存失败 🚨\n\n原因: ${errorMsg}\n进度已保存在本地，网络恢复后请手动点击云同步。`);
             }
-            alert(`🚨 保存失败详细报告 🚨\n\n详细原因：\n${e.message}`);
         }
     },
 
@@ -231,17 +225,22 @@ const app = {
         const currentAnswer = this.answers[q.Number];
         const labels = { 1: "非常不同意", 2: "不同意", 3: "一般/不确定", 4: "同意", 5: "非常同意" };
 
-        // 终极完美解析排版引擎 (Flexbox 解析法，彻底根除错位)
-        const parsedAnchor = q.Anchor.split('\\n').map(line => {
+        // 终极完美解析排版引擎 (智能识别圆点并强制换行，Flexbox 悬挂缩进)
+        // 1. 无论有没有 \n，只要遇到 • 就强行在它前面加个换行符
+        const rawAnchor = (q.Anchor || '').replace(/\\n/g, '\n').replace(/•/g, '\n•'); 
+        
+        const parsedAnchor = rawAnchor.split('\n').map(line => {
             line = line.trim();
             if(!line) return '';
             if(line.startsWith('•')) {
-                return `<div style="display: flex; align-items: flex-start; margin-bottom: 6px;">
-                            <span style="color: #2196f3; margin-right: 8px; font-weight: bold; font-size: 18px; line-height: 1.4;">•</span>
-                            <span style="flex: 1; line-height: 1.5;">${line.substring(1).trim()}</span>
+                // 图二效果：悬挂缩进，文字对齐，左侧留白
+                return `<div style="display: flex; align-items: flex-start; margin-bottom: 12px;">
+                            <span style="color: #8c9eff; margin-right: 12px; font-weight: bold; font-size: 18px; line-height: 1.6;">•</span>
+                            <span style="flex: 1; line-height: 1.6; color: #333333; text-align: justify;">${line.substring(1).trim()}</span>
                         </div>`;
             }
-            return `<div style="margin-bottom: 6px; line-height: 1.5;">${line}</div>`;
+            // 非圆点文本的常规显示
+            return `<div style="margin-bottom: 8px; line-height: 1.6; color: #555;">${line}</div>`;
         }).join('');
 
         // 疑问区状态
