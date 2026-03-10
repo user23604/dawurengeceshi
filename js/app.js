@@ -1,7 +1,7 @@
 const app = {
     questions: [],
     answers: {},
-    doubts: {}, // 专门存放疑问的数据库
+    doubts: {}, 
     currentIndex: 0,
     slideDirection: '',
     domainMap: { 'N':'神经质', 'E':'外向性', 'O':'开放性', 'A':'宜人性', 'C':'尽责性' },
@@ -11,8 +11,12 @@ const app = {
         token: localStorage.getItem('gist_token') || ''
     },
 
-    // 🌟 新增：云同步防抖定时器，防止频控封禁
-    saveTimeout: null,
+    // 🌟 高级网络引擎核心变量
+    updateTime: 0,          // 本地数据的最后修改时间戳
+    syncCooldown: 15000,    // 严格节流阀：冷却时间 15 秒 (严防 403 封禁)
+    lastApiCallTime: 0,     // 上一次真实发送网络请求的时间
+    needsSync: false,       // 脏数据标记：是否有未同步的本地改动
+    syncTimer: null,        // 节流定时器
 
     async init() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -41,10 +45,10 @@ const app = {
             if(!response.ok) throw new Error("无法读取题库文件");
             this.questions = await response.json();
             
+            // 初始化阶段，先加载本地，再尝试拉云端比对
+            this.loadLocalData();
             if (this.gistConfig.id && this.gistConfig.token) {
                 await this.loadFromGist();
-            } else {
-                this.loadLocalData();
             }
             
             this.currentIndex = this.questions.findIndex(q => !this.answers[q.Number] && this.answers[q.Number] !== 'skip');
@@ -58,33 +62,66 @@ const app = {
         }
     },
 
-    // --- 数据兼容与读写引擎 ---
+    // --- 数据持久化与时间戳打标 ---
     loadLocalData() {
         const localData = JSON.parse(localStorage.getItem('ipip_answers')) || {};
         if (localData.answers !== undefined) {
             this.answers = localData.answers;
             this.doubts = localData.doubts || {};
+            this.updateTime = localData.update_time || 0; // 提取本地时间戳
         } else {
             this.answers = localData; 
             this.doubts = {};
+            this.updateTime = 0;
         }
     },
     
     saveLocalData() {
-        localStorage.setItem('ipip_answers', JSON.stringify({ answers: this.answers, doubts: this.doubts }));
+        this.updateTime = Date.now(); // 只要有任何增删改，瞬间打上最新时间戳
+        localStorage.setItem('ipip_answers', JSON.stringify({ 
+            answers: this.answers, 
+            doubts: this.doubts,
+            update_time: this.updateTime 
+        }));
     },
 
-    // 🌟 新增：智能延迟同步引擎 (节流与防抖)，彻底杜绝 403 错误
+    // 🌟 核心：真正的状态机节流阀 (Throttling)
     triggerCloudSave() {
+        this.needsSync = true;
+        this.attemptSync();
+    },
+
+    attemptSync() {
+        if (!this.needsSync) return; // 如果没有脏数据，直接不管
+
+        const now = Date.now();
+        const timeSinceLastCall = now - this.lastApiCallTime;
         const statusEl = document.getElementById('sync-status');
-        if(statusEl) statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 暂存本地...</span>";
-        
-        if (this.saveTimeout) clearTimeout(this.saveTimeout);
-        
-        // 等待 2.5 秒用户无操作后，再向 GitHub 批量推送
-        this.saveTimeout = setTimeout(() => {
+
+        if (timeSinceLastCall >= this.syncCooldown) {
+            // 冷却时间已过，准许发送网络请求
+            this.lastApiCallTime = now;
+            this.needsSync = false;
             this.saveToGist();
-        }, 2500);
+        } else {
+            // 还在冷却期内，显示暂存，并安排定时器在冷却结束后自动发送
+            if(statusEl) statusEl.innerHTML = `<span style='color:#888;'>💾 本地秒存 (等待冷却...)</span>`;
+            if (!this.syncTimer) {
+                this.syncTimer = setTimeout(() => {
+                    this.syncTimer = null;
+                    this.attemptSync();
+                }, this.syncCooldown - timeSinceLastCall);
+            }
+        }
+    },
+
+    // 手动强制同步按钮接口
+    forceCloudSync() {
+        if (this.syncTimer) clearTimeout(this.syncTimer);
+        this.syncTimer = null;
+        this.lastApiCallTime = 0; // 强制重置冷却锁
+        this.needsSync = true;
+        this.attemptSync();
     },
 
     async fetchWithTimeout(url, options, timeout = 10000) {
@@ -102,109 +139,80 @@ const app = {
 
     async loadFromGist() {
         const statusEl = document.getElementById('sync-status');
-        if(statusEl) {
-            statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 拉取云端中...</span>";
-            statusEl.onclick = null;
-        }
+        if(statusEl) { statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 检查云端更新...</span>"; statusEl.onclick = null; }
         
         try {
             const cleanId = this.gistConfig.id.trim();
             const cleanToken = this.gistConfig.token.trim();
             const url = `https://api.github.com/gists/${cleanId}?t=${new Date().getTime()}`;
             
-            const res = await this.fetchWithTimeout(url, { 
-                headers: { 'Authorization': `Bearer ${cleanToken}` } // 规范使用 Bearer
-            }, 10000);
-            
+            const res = await this.fetchWithTimeout(url, { headers: { 'Authorization': `Bearer ${cleanToken}` } }, 10000);
             if (!res.ok) throw new Error(`HTTP状态码 ${res.status}`);
             
             const data = await res.json();
             if (!data.files || !data.files['ipip_answers.json']) throw new Error("云端无对应文件");
 
-            const rawContent = data.files['ipip_answers.json'].content;
             let content;
-            try {
-                content = JSON.parse(rawContent);
-            } catch (e) {
-                throw new Error("云端数据 JSON 解析失败");
-            }
+            try { content = JSON.parse(data.files['ipip_answers.json'].content); } catch (e) { throw new Error("云端数据结构损坏"); }
             
             if (content && typeof content === 'object') {
                 const cloudAnswers = content.answers !== undefined ? content.answers : content;
                 const cloudDoubts = content.doubts || content["疑问"] || {};
+                const cloudUpdateTime = content.update_time || 0; // 获取云端时间戳
 
-                // 🌟 核心：进度护城河仲裁引擎
-                const cloudCount = Object.keys(cloudAnswers).length;
-                const localCount = Object.keys(this.answers).length;
-
-                if (localCount > cloudCount) {
-                    // 本地领先，防覆盖拦截！
-                    const userChoice = confirm(`⚠️ 发现进度冲突！\n\n当前设备已答：${localCount} 题\n云端备份已答：${cloudCount} 题\n\n当前设备的进度更超前！\n\n点击“确定”用本机进度强行覆盖云端。\n点击“取消”强制退回云端旧数据（警告：将丢失本地多做的题！）。`);
-                    if (userChoice) {
-                        this.triggerCloudSave(); // 选确定，反向推送到云端
-                        if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 准备同步新进度</span>";
-                        return; // 中断，绝不执行后续的覆盖本地操作
-                    }
+                // 🌟 LWW (Last-Write-Wins) 时间戳冲突仲裁引擎
+                if (cloudUpdateTime > this.updateTime) {
+                    // 云端时间比本地新：静默覆盖本地数据
+                    this.answers = cloudAnswers;
+                    this.doubts = cloudDoubts;
+                    this.updateTime = cloudUpdateTime;
+                    localStorage.setItem('ipip_answers', JSON.stringify({ answers: this.answers, doubts: this.doubts, update_time: this.updateTime })); // 只写本地，不触发最新时间戳
+                    
+                    if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已拉取云端最新进度</span>";
+                    if(document.getElementById('question-card').innerHTML !== '') { this.updateProgress(); this.renderQuestion(); }
+                } else if (this.updateTime > cloudUpdateTime) {
+                    // 本地时间比云端新：自动将本地更新反向推送到云端
+                    if(statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>🚀 本地进度超前，正推向云端...</span>";
+                    this.forceCloudSync();
+                } else {
+                    // 完全一致
+                    if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 与云端保持同步</span>";
                 }
-
-                // 安全覆盖
-                this.answers = cloudAnswers;
-                this.doubts = cloudDoubts;
-                this.saveLocalData();
-                
-                if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 云端已同步</span>";
-                
-                // 如果题板已经存在，刷新界面展现最新进度
-                if(document.getElementById('question-card').innerHTML !== '') {
-                    this.updateProgress();
-                    this.renderQuestion();
-                }
-            } else {
-                throw new Error("云端数据结构异常");
             }
-            
         } catch (e) {
             console.error("【同步拉取异常】", e);
             if(statusEl) {
-                statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer; text-decoration:underline;'>❌ 同步失败(点我查看)</span>";
-                let errorMsg = e.name === 'AbortError' ? '请求超时，请检查网络环境' : e.message;
-                statusEl.onclick = () => alert(`🚨 拉取失败 🚨\n\n原因: ${errorMsg}\n已自动回退使用本地缓存数据。`);
+                statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer;'>❌ 同步失败(点我)</span>";
+                statusEl.onclick = () => alert(`🚨 拉取失败: ${e.message}\n您的数据已安全保存在本地，不影响继续做题。`);
             }
-            this.loadLocalData(); 
         }
     },
 
     async saveToGist() {
         if (!this.gistConfig.id || !this.gistConfig.token) return;
         const statusEl = document.getElementById('sync-status');
-        if(statusEl) {
-            statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 正在上传...</span>";
-            statusEl.onclick = null;
-        }
+        if(statusEl) { statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 正在上云...</span>"; statusEl.onclick = null; }
         
         try {
-            const payload = { answers: this.answers, doubts: this.doubts };
+            // 打包时，严格携带本地的精确时间戳
+            const payload = { answers: this.answers, doubts: this.doubts, update_time: this.updateTime };
             const cleanId = this.gistConfig.id.trim();
             const cleanToken = this.gistConfig.token.trim();
             
             const res = await this.fetchWithTimeout(`https://api.github.com/gists/${cleanId}`, {
                 method: 'PATCH',
-                headers: { 
-                    'Authorization': `Bearer ${cleanToken}`, 
-                    'Content-Type': 'application/json' 
-                },
+                headers: { 'Authorization': `Bearer ${cleanToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ files: { 'ipip_answers.json': { content: JSON.stringify(payload) } } })
             }, 10000);
             
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 进度已上云</span>";
+            if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 进度已安全上云</span>";
             
         } catch (e) { 
             console.error("【同步保存异常】", e);
             if(statusEl) {
-                statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer; text-decoration:underline;'>❌ 上传失败(点我查看)</span>";
-                let errorMsg = e.name === 'AbortError' ? '请求超时' : e.message;
-                statusEl.onclick = () => alert(`🚨 保存失败 🚨\n\n原因: ${errorMsg}\n\n不用担心！进度已安全保存在本机，网络畅通后重新点击上方【云同步】按钮即可补救。`);
+                statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer;'>❌ 上传失败(点我)</span>";
+                statusEl.onclick = () => alert(`🚨 保存失败: ${e.message}\n\n不用担心！进度已绝对安全地保存在本机缓存中。网络恢复后点顶部的云同步按钮即可。`);
             }
         }
     },
@@ -305,11 +313,9 @@ const app = {
 
         card.classList.remove('slide-in-right', 'slide-in-left', 'fade-in');
         void card.offsetWidth; 
-        
         if (this.slideDirection === 'left') card.classList.add('slide-in-right'); 
         else if (this.slideDirection === 'right') card.classList.add('slide-in-left'); 
         else card.classList.add('fade-in'); 
-        
         this.slideDirection = ''; 
 
         document.getElementById('prev-btn').style.visibility = (this.currentIndex === 0) ? 'hidden' : 'visible';
@@ -324,25 +330,19 @@ const app = {
     },
 
     toggleDoubt(qNumber) {
-        if (this.doubts[qNumber] !== undefined) {
-            delete this.doubts[qNumber]; 
-        } else {
-            this.doubts[qNumber] = ""; 
-        }
+        if (this.doubts[qNumber] !== undefined) delete this.doubts[qNumber]; 
+        else this.doubts[qNumber] = ""; 
         this.saveLocalData();
-        this.triggerCloudSave(); // 替换为防抖保存
+        this.triggerCloudSave(); 
         this.renderQuestion(); 
-        
-        if (this.doubts[qNumber] !== undefined) {
-            setTimeout(() => document.getElementById(`doubt-input-${qNumber}`).focus(), 50);
-        }
+        if (this.doubts[qNumber] !== undefined) setTimeout(() => document.getElementById(`doubt-input-${qNumber}`).focus(), 50);
     },
 
     saveDoubt(qNumber, text) {
         if (this.doubts[qNumber] !== undefined) {
             this.doubts[qNumber] = text.trim();
             this.saveLocalData();
-            this.triggerCloudSave(); // 替换为防抖保存
+            this.triggerCloudSave();
         }
     },
 
@@ -352,7 +352,7 @@ const app = {
             element.classList.remove('selected');
             this.saveLocalData();
             this.updateProgress();
-            this.triggerCloudSave(); // 替换为防抖保存
+            this.triggerCloudSave(); 
             this.renderQuestion(); 
             return;
         }
@@ -364,14 +364,14 @@ const app = {
         element.classList.add('selected');
         
         this.updateProgress();
-        this.triggerCloudSave(); // 替换为防抖保存
+        this.triggerCloudSave(); 
         setTimeout(() => this.goNext(), 300);
     },
 
     skipQuestion() {
         this.answers[this.questions[this.currentIndex].Number] = 'skip';
         this.saveLocalData();
-        this.triggerCloudSave(); // 替换为防抖保存
+        this.triggerCloudSave();
         this.goNext();
     },
 
@@ -406,30 +406,28 @@ const app = {
     exportSaveCode() {
         try {
             if (Object.keys(this.answers).length === 0) return alert("暂无记录！");
-            const payload = { answers: this.answers, doubts: this.doubts };
-            // 🌟 修复底层 Bug：先用 encodeURIComponent 转义中文，再 btoa
+            const payload = { answers: this.answers, doubts: this.doubts, update_time: this.updateTime };
             const code = btoa(encodeURIComponent(JSON.stringify(payload)));
             navigator.clipboard.writeText(code).then(() => alert("✅ 进度码已复制！可发送给其他设备。")).catch(() => prompt("请手动复制以下进度码：", code));
-        } catch (e) {
-            alert(`❌ 导出失败：${e.message}`);
-        }
+        } catch (e) { alert(`❌ 导出失败：${e.message}`); }
     },
 
     importSaveCode() {
         const code = prompt("粘贴进度码：");
         if (!code) return;
         try {
-            // 🌟 修复底层 Bug：先 atob，再 decodeURIComponent 解码中文
             const content = JSON.parse(decodeURIComponent(atob(code)));
             if (content.answers !== undefined) {
                 this.answers = content.answers;
                 this.doubts = content.doubts || {};
+                this.updateTime = content.update_time || Date.now();
             } else {
                 this.answers = content;
                 this.doubts = {};
+                this.updateTime = Date.now();
             }
             this.saveLocalData();
-            this.triggerCloudSave(); // 导入后自动触发防抖云同步
+            this.forceCloudSync(); // 导入后强推覆盖云端
             alert("✅ 导入成功！正在刷新页面...");
             location.reload(); 
         } catch (e) { alert("❌ 损坏的进度码，无法识别。"); }
@@ -462,6 +460,7 @@ const app = {
             if(domainStats[d].count > 0) html += `<tr><td><strong>${this.domainMap[d]}</strong></td><td>${domainStats[d].count}</td><td>${domainStats[d].sum}</td></tr>`;
         }
         document.querySelector('#domain-table tbody').innerHTML = html;
+        this.forceCloudSync(); // 做完后强行备份一次
     },
 
     exportCSV() {
