@@ -90,14 +90,20 @@ const app = {
 
     async loadFromGist() {
         try {
-            const res = await fetch(`https://api.github.com/gists/${this.gistConfig.id}`, {
-                headers: { 'Authorization': `token ${this.gistConfig.token}` }
+            // 【关键修改】：加入时间戳 (t=...) 和 no-cache 请求头，强制 GitHub 不准用旧缓存
+            const url = `https://api.github.com/gists/${this.gistConfig.id}?t=${new Date().getTime()}`;
+            const res = await fetch(url, {
+                headers: { 
+                    'Authorization': `token ${this.gistConfig.token}`,
+                    'Cache-Control': 'no-cache'
+                }
             });
-            if (!res.ok) throw new Error("验证失败");
+            if (!res.ok) throw new Error("验证失败或Token不正确");
             const data = await res.json();
             const content = data.files['ipip_answers.json'].content;
             this.answers = JSON.parse(content);
             localStorage.setItem('ipip_answers', content);
+            console.log("✅ 云端同步成功（已绕过缓存）");
         } catch (e) {
             console.error("云端加载失败", e);
             this.answers = JSON.parse(localStorage.getItem('ipip_answers')) || {};
