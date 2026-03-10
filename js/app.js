@@ -74,27 +74,68 @@ const app = {
 
     async loadFromGist() {
         const statusEl = document.getElementById('sync-status');
-        if(statusEl) statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 拉取云端中...</span>";
+        if(statusEl) {
+            statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 拉取云端中...</span>";
+            statusEl.onclick = null; // 清除之前的点击事件
+        }
+        
         try {
-            const url = `https://api.github.com/gists/${this.gistConfig.id}?t=${new Date().getTime()}`;
-            const res = await fetch(url, { headers: { 'Authorization': `token ${this.gistConfig.token}`, 'Cache-Control': 'no-cache' }});
-            if (!res.ok) throw new Error("验证失败");
+            // 自动清理可能不小心多复制的空格或换行
+            const cleanId = this.gistConfig.id.trim();
+            const cleanToken = this.gistConfig.token.trim();
+            
+            const url = `https://api.github.com/gists/${cleanId}?t=${new Date().getTime()}`;
+            const res = await fetch(url, { 
+                headers: { 
+                    'Authorization': `token ${cleanToken}`, 
+                    'Cache-Control': 'no-cache' 
+                }
+            });
+            
+            // 核心捕获 1：如果 GitHub 拒绝，直接提取官方报错详情
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`HTTP状态码 ${res.status}\n接口原始返回: ${errText}`);
+            }
             
             const data = await res.json();
-            const content = JSON.parse(data.files['ipip_answers.json'].content);
+            if (!data.files || !data.files['ipip_answers.json']) {
+                throw new Error("云端 Gist 中没找到 ipip_answers.json 文件，请检查 Gist ID 是否填错。");
+            }
+
+            const rawContent = data.files['ipip_answers.json'].content;
+            let content;
+            
+            // 核心捕获 2：防止 Edge 翻译插件导致的 JSON 格式损坏
+            try {
+                content = JSON.parse(rawContent);
+            } catch (parseErr) {
+                throw new Error(`JSON解析失败，云端数据格式可能已损坏！\n系统报错: ${parseErr.message}\n截取的部分数据: ${rawContent.substring(0, 80)}...`);
+            }
             
             if (content.answers !== undefined) {
                 this.answers = content.answers;
-                this.doubts = content.doubts || {};
+                // 兼容一下如果真的被 Edge 翻译成中文的情况
+                this.doubts = content.doubts || content["疑问"] || {};
             } else {
                 this.answers = content;
                 this.doubts = {};
             }
             this.saveLocalData();
             if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 云端已同步</span>";
+            
         } catch (e) {
-            console.error("云端加载失败", e);
-            if(statusEl) statusEl.innerHTML = "<span style='color:#d32f2f;'>❌ 同步失败，使用本地</span>";
+            console.error("【拉取调试日志】", e);
+            
+            // 强提醒：状态栏变红，并支持点击再次查看
+            if(statusEl) {
+                statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer; text-decoration:underline;'>❌ 同步失败(点我查看)</span>";
+                statusEl.onclick = () => alert(`🚨 拉取失败详细报告 🚨\n\n${e.message}`);
+            }
+            
+            // 第一次失败时直接砸到脸上
+            alert(`🚨 同步拉取失败 🚨\n\n详细原因：\n${e.message}\n\n排雷指南：\n1. 如果显示 "Failed to fetch"，百分百是当前浏览器没走代理，被墙了。\n2. 如果显示 "HTTP 401"，说明当前浏览器里存的 Token 填错了或者过期了。\n3. 如果显示 "HTTP 404"，说明 Gist ID 错了。`);
+            
             this.loadLocalData();
         }
     },
@@ -102,18 +143,39 @@ const app = {
     async saveToGist() {
         if (!this.gistConfig.id || !this.gistConfig.token) return;
         const statusEl = document.getElementById('sync-status');
-        if(statusEl) statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 正在保存...</span>";
+        if(statusEl) {
+            statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 正在保存...</span>";
+            statusEl.onclick = null;
+        }
+        
         try {
+            const cleanId = this.gistConfig.id.trim();
+            const cleanToken = this.gistConfig.token.trim();
+            
             const payload = { answers: this.answers, doubts: this.doubts };
-            const res = await fetch(`https://api.github.com/gists/${this.gistConfig.id}`, {
+            const res = await fetch(`https://api.github.com/gists/${cleanId}`, {
                 method: 'PATCH',
-                headers: { 'Authorization': `token ${this.gistConfig.token}`, 'Content-Type': 'application/json' },
+                headers: { 
+                    'Authorization': `token ${cleanToken}`, 
+                    'Content-Type': 'application/json' 
+                },
                 body: JSON.stringify({ files: { 'ipip_answers.json': { content: JSON.stringify(payload) } } })
             });
-            if (!res.ok) throw new Error("保存失败");
+            
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error(`HTTP状态码 ${res.status}\n接口原始返回: ${errText}`);
+            }
+            
             if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已云端保存</span>";
+            
         } catch (e) { 
-            if(statusEl) statusEl.innerHTML = "<span style='color:#d32f2f;'>❌ 保存失败</span>";
+            console.error("【保存调试日志】", e);
+            if(statusEl) {
+                statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer; text-decoration:underline;'>❌ 保存失败(点我查看)</span>";
+                statusEl.onclick = () => alert(`🚨 保存失败详细报告 🚨\n\n${e.message}`);
+            }
+            alert(`🚨 保存失败详细报告 🚨\n\n详细原因：\n${e.message}`);
         }
     },
 
