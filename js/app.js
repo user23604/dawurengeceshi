@@ -32,9 +32,10 @@ const app = {
         this.initSwipeGesture();
 
         try {
-            // 给题库请求也加上动态时间戳，防止改了题库网页不更新
+            // 给题库请求加上时间戳，保证题目也是最新的
             const timestamp = new Date().getTime();
             const response = await fetch(`data/questions.json?t=${timestamp}`);
+            if(!response.ok) throw new Error("无法读取题库文件");
             this.questions = await response.json();
             
             if (this.gistConfig.id && this.gistConfig.token) {
@@ -49,8 +50,12 @@ const app = {
             this.initProgressBar();
             this.renderQuestion();
         } catch (error) {
-            console.error(error);
-            document.getElementById('question-card').innerHTML = `<div style="color:red; text-align:center;">数据加载失败。<br>${error}</div>`;
+            console.error("初始化错误：", error);
+            document.getElementById('question-card').innerHTML = `<div style="color:red; text-align:center; padding: 30px;">
+                <h3>❌ 数据加载失败</h3>
+                <p>无法读取题库文件 (questions.json)</p>
+                <p style="font-size:14px; color:#666;">请检查 GitHub 仓库的 data 文件夹中是否存在该文件，且注意大小写是否一致。</p>
+            </div>`;
         }
     },
 
@@ -84,7 +89,6 @@ const app = {
         const statusEl = document.getElementById('sync-status');
         if(statusEl) statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 拉取云端中...</span>";
         try {
-            // 加入时间戳强制穿透 GitHub 缓存，解决两端不一致问题
             const url = `https://api.github.com/gists/${this.gistConfig.id}?t=${new Date().getTime()}`;
             const res = await fetch(url, {
                 headers: { 
@@ -163,15 +167,15 @@ const app = {
     },
 
     renderQuestion() {
+        if (!this.questions || this.questions.length === 0) return;
         if (this.currentIndex >= this.questions.length) return this.showResults();
 
         const q = this.questions[this.currentIndex];
+        if (!q || !q.Item) return; // 防止数据损坏导致渲染崩溃
+
         const currentAnswer = this.answers[q.Number];
-        
-        // 核心修改：补全所有的注释小字
         const labels = { 1: "非常不同意", 2: "不同意", 3: "一般/不确定", 4: "同意", 5: "非常同意" };
 
-        // 核心修改：将 row-int (整数行) 调换到了 row-half (小数行) 的上方
         let html = `
             <div class="q-number">题目进度： ${this.currentIndex + 1} / ${this.questions.length}</div>
             <div class="q-title">${q.Item}</div>
@@ -218,7 +222,7 @@ const app = {
         document.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('selected'));
         element.classList.add('selected');
         this.updateProgress();
-        this.saveToGist(); // 触发上传，顶部会有提示
+        this.saveToGist(); 
         setTimeout(() => this.goNext(), 300);
     },
 
@@ -310,5 +314,4 @@ const app = {
         link.click();
     }
 };
-
-window.addEventListener('DOMContentLoaded', () => app.init());
+// 注意：删除了最后的 window.addEventListener，防止二次重复执行

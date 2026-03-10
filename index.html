@@ -5,16 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>大五人格测试 (IPIP-NEO-300)</title>
     <script>
-    // 自动获取当前时间戳作为版本号，永久拒绝 CSS 缓存
-    var t = new Date().getTime();
-    document.write('<link rel="stylesheet" href="css/style.css?t=' + t + '">');
-</script>
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'css/style.css?t=' + new Date().getTime();
+        document.head.appendChild(link);
+    </script>
 </head>
 <body>
     <div class="header">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <div style="display: flex; align-items: center; gap: 8px;">
-                <div class="progress-text" id="progress-text" style="margin-bottom: 0;">加载中...</div>
+                <div class="progress-text" id="progress-text" style="margin-bottom: 0;">准备中...</div>
                 <span id="sync-status" style="font-size: 12px; font-weight: bold;"></span>
             </div>
             <div style="display: flex; gap: 5px;">
@@ -29,7 +30,7 @@
     <div class="container">
         <div id="quiz-screen">
             <div class="card" id="question-card">
-                <div style="text-align:center; padding: 50px; font-size: 20px;">正在加载题库...</div>
+                <div style="text-align:center; padding: 50px; font-size: 20px; color: #666;">正在加载核心数据，请稍候...</div>
             </div>
             <div class="controls">
                 <button class="nav-btn" id="prev-btn" onclick="app.goPrev()">← 上一题</button>
@@ -53,10 +54,15 @@
             </div>
         </div>
     </div>
+
     <script>
-    // 自动获取当前时间戳作为版本号，永久拒绝 JS 缓存
-    var t = new Date().getTime();
-    document.write('<script src="js/app.js?t=' + t + '"><\\/script>');
-</script>
+        var script = document.createElement('script');
+        script.src = 'js/app.js?t=' + new Date().getTime();
+        script.onload = function() {
+            // 确保 JS 下载完后立刻运行，绝不卡死
+            app.init();
+        };
+        document.body.appendChild(script);
+    </script>
 </body>
 </html>
