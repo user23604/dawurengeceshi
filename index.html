@@ -4,7 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>大五人格测试 (IPIP-NEO-300)</title>
-    <link rel="stylesheet" href="css/style.css">
+    <script>
+    // 自动获取当前时间戳作为版本号，永久拒绝 CSS 缓存
+    var t = new Date().getTime();
+    document.write('<link rel="stylesheet" href="css/style.css?t=' + t + '">');
+</script>
 </head>
 <body>
     <div class="header">
@@ -49,6 +53,10 @@
             </div>
         </div>
     </div>
-    <script src="js/app.js"></script>
+    <script>
+    // 自动获取当前时间戳作为版本号，永久拒绝 JS 缓存
+    var t = new Date().getTime();
+    document.write('<script src="js/app.js?t=' + t + '"><\\/script>');
+</script>
 </body>
 </html>

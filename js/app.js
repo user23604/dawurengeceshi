@@ -32,7 +32,9 @@ const app = {
         this.initSwipeGesture();
 
         try {
-            const response = await fetch('data/questions.json');
+            // 给题库请求也加上动态时间戳，防止改了题库网页不更新
+            const timestamp = new Date().getTime();
+            const response = await fetch(`data/questions.json?t=${timestamp}`);
             this.questions = await response.json();
             
             if (this.gistConfig.id && this.gistConfig.token) {
