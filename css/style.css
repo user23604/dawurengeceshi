@@ -53,3 +53,25 @@ body { display: flex; flex-direction: column; padding-top: 65px; box-sizing: bor
 .result-table th, .result-table td { border: 1px solid #ddd; padding: 10px; text-align: center;}
 .result-table th { background-color: #f8f9fa;}
 .export-btn { padding: 12px 15px; color: white; border-radius: 8px; cursor: pointer; border: none; font-size: 14px; font-weight: bold; margin: 5px; background: #2b3137;}
+
+/* ================= 新增：卡片滑动切换动画 ================= */
+@keyframes slideInFromRight {
+    from { transform: translateX(60px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideInFromLeft {
+    from { transform: translateX(-60px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.slide-in-right { animation: slideInFromRight 0.25s ease-out; }
+.slide-in-left { animation: slideInFromLeft 0.25s ease-out; }
+.fade-in { animation: fadeIn 0.3s ease-out; }
+
+/* 专门美化一下选项按钮，让点击也更跟手 */
+.opt-btn { transition: all 0.15s ease-in-out; }
+.opt-btn:active { transform: scale(0.95); }
