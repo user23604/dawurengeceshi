@@ -1,4 +1,4 @@
-/* 使用 100dvh 解决手机浏览器地址栏遮挡底部的问题 */
+/* 解决手机浏览器地址栏遮挡底部的问题 */
 html, body { height: 100%; height: 100dvh; margin: 0; padding: 0; overflow: hidden; background-color: #f0f2f5; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; color: #333;}
 body { display: flex; flex-direction: column; padding-top: 65px; box-sizing: border-box;}
 
@@ -12,33 +12,29 @@ body { display: flex; flex-direction: column; padding-top: 65px; box-sizing: bor
 .container { flex: 1; display: flex; flex-direction: column; max-width: 900px; margin: 0 auto; width: 100%; padding: 10px 15px; box-sizing: border-box; min-height: 0;}
 #quiz-screen { flex: 1; display: flex; flex-direction: column; min-height: 0;}
 
-.card { background: #fff; border-radius: 12px; padding: 25px 30px; box-shadow: 0 4px 16px rgba(0,0,0,0.04); flex: 1; display: flex; flex-direction: column; overflow-y: auto; margin-bottom: 15px;}
+.card { background: #fff; border-radius: 12px; padding: 25px; box-shadow: 0 4px 16px rgba(0,0,0,0.04); flex: 1; display: flex; flex-direction: column; overflow-y: auto; margin-bottom: 12px;}
 .q-number { font-size: 15px; color: #888; margin-bottom: 15px; letter-spacing: 1px; font-weight: bold;}
 
-/* 题目字体加大、加粗、字间距调宽 */
 .q-title { font-size: 26px; font-weight: 800; margin-bottom: 25px; line-height: 1.5; color: #111; letter-spacing: 1px;}
 
-/* 完美悬挂缩进排版 */
+/* 锚点区基础样式（排版对齐现已由 JS Flexbox 接管） */
 .q-anchor { 
     font-size: 18px; 
-    font-weight: 600; /* 加粗防疲劳 */
+    font-weight: 600; 
     letter-spacing: 0.5px;
     color: #333; 
     background: #f4f6f8; 
     border-left: 5px solid #2196f3; 
-    padding: 15px 15px 15px 30px; /* 左侧留出空间给缩进 */
-    margin-bottom: 30px; 
-    white-space: pre-wrap; 
+    padding: 15px; 
+    margin-bottom: 25px; 
     border-radius: 0 8px 8px 0; 
-    line-height: 1.6;
-    text-indent: -16px; /* 核心魔法：把第一行的圆点拉出去，实现上下行文字平齐对齐 */
 }
 
+/* 选项区域与疑惑区 */
 .options-area { margin-top: auto; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px;}
 .row-half { display: flex; justify-content: space-between; gap: 4%; padding: 0 10%;}
 .row-int { display: flex; justify-content: space-between; gap: 4%;}
 
-/* 按钮字号调整 */
 .opt-btn { flex: 1; padding: 12px 0; border: 2px solid #e0e0e0; background: #fff; border-radius: 10px; cursor: pointer; font-size: 20px; font-weight: bold; color: #555; transition: all 0.15s ease-in-out; text-align: center;}
 .opt-btn:hover { background: #f0f5ff; border-color: #2196f3; color: #2196f3;}
 .opt-btn:active { transform: scale(0.95); }
@@ -51,21 +47,21 @@ body { display: flex; flex-direction: column; padding-top: 65px; box-sizing: bor
 .nav-btn { background: #fff; border: 1px solid #ccc; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; color: #555; font-weight: bold;}
 .skip-btn { color: #d84315; border-color: #ffb74d; background: #fff8e1;}
 
-/* 手机端极致排版，减少无用边距 */
+/* 手机端极致排版：榨干边距，留给文字 */
 @media (max-width: 600px) {
     body { padding-top: 60px; }
     .header { padding: 8px 10px; }
     .container { padding: 5px 8px; }
-    .card { padding: 18px 15px; border-radius: 10px;}
+    /* 卡片左右边距调小到 12px */
+    .card { padding: 18px 12px; border-radius: 10px;}
     .q-title { font-size: 22px; margin-bottom: 18px;}
-    .q-anchor { font-size: 17px; padding: 12px 12px 12px 26px; margin-bottom: 20px; text-indent: -14px; }
+    .q-anchor { font-size: 17px; padding: 12px; margin-bottom: 20px;}
     .opt-btn { padding: 10px 0; font-size: 18px; }
-    .opt-btn span.label { font-size: 11px; }
+    .opt-btn span.label { font-size: 11px; letter-spacing: 0;}
     .row-half { padding: 0 5%; }
     .nav-btn { padding: 10px 14px; font-size: 15px;}
 }
 
-/* 动画效果 */
 @keyframes slideInFromRight { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes slideInFromLeft { from { transform: translateX(-40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -73,7 +69,6 @@ body { display: flex; flex-direction: column; padding-top: 65px; box-sizing: bor
 .slide-in-left { animation: slideInFromLeft 0.2s ease-out; }
 .fade-in { animation: fadeIn 0.2s ease-out; }
 
-/* 结果区样式 */
 .result-screen { display: none; background: #fff; border-radius: 16px; padding: 30px 20px; overflow-y: auto; height: 100%;}
 .result-title { font-size: 28px; text-align: center; margin-bottom: 20px;}
 .result-table { width: 100%; border-collapse: collapse; margin-top: 15px;}
