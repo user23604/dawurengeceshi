@@ -3,20 +3,110 @@ const app = {
     answers: {},
     currentIndex: 0,
     domainMap: { 'N':'神经质', 'E':'外向性', 'O':'开放性', 'A':'宜人性', 'C':'尽责性' },
+    
+    // Gist 配置信息（从本地存储读取）
+    gistConfig: {
+        id: localStorage.getItem('gist_id') || '',
+        token: localStorage.getItem('gist_token') || ''
+    },
 
     async init() {
+        // 1. 暗号访问校验逻辑
+        const urlParams = new URLSearchParams(window.location.search);
+        const keyFromUrl = urlParams.get('key');
+        const CORRECT_KEY = '11115555'; // 你的访问暗号
+
+        if (keyFromUrl === CORRECT_KEY) {
+            localStorage.setItem('access_key', keyFromUrl);
+        }
+
+        if (localStorage.getItem('access_key') !== CORRECT_KEY) {
+            document.body.innerHTML = `
+                <div style="text-align:center; margin-top:100px; font-family:sans-serif;">
+                    <h1>🔒 受保护的内容</h1>
+                    <p>请输入正确链接访问，或在下方输入暗号：</p>
+                    <input type="password" id="pwd" style="padding:10px; border-radius:5px; border:1px solid #ccc;">
+                    <button onclick="const k=document.getElementById('pwd').value; if(k==='${CORRECT_KEY}'){localStorage.setItem('access_key',k); location.reload();}else{alert('错误');}" style="padding:10px 20px; cursor:pointer;">进入</button>
+                </div>`;
+            return;
+        }
+
+        // 2. 加载基础题库和进度
         try {
             const response = await fetch('data/questions.json');
             this.questions = await response.json();
-            this.answers = JSON.parse(localStorage.getItem('ipip_answers')) || {};
             
+            // 优先尝试从 Gist 云端加载进度
+            if (this.gistConfig.id && this.gistConfig.token) {
+                console.log("正在尝试从云端同步进度...");
+                await this.loadFromGist();
+            } else {
+                this.answers = JSON.parse(localStorage.getItem('ipip_answers')) || {};
+            }
+            
+            // 定位到第一道未答题
             this.currentIndex = this.questions.findIndex(q => !this.answers[q.Number] && this.answers[q.Number] !== 'skip');
             if(this.currentIndex === -1) this.currentIndex = this.questions.length - 1;
 
             this.initProgressBar();
             this.renderQuestion();
         } catch (error) {
-            document.getElementById('question-card').innerHTML = `<div style="color:red; text-align:center;">请在本地服务器环境下运行，或使用下方单文件打包版。<br>${error}</div>`;
+            document.getElementById('question-card').innerHTML = `<div style="color:red; text-align:center;">初始化失败，请检查题库路径或网络。<br>${error}</div>`;
+        }
+    },
+
+    // --- Gist 云端同步：拉取数据 ---
+    async loadFromGist() {
+        try {
+            const res = await fetch(`https://api.github.com/gists/${this.gistConfig.id}`, {
+                headers: { 'Authorization': `token ${this.gistConfig.token}` }
+            });
+            if (!res.ok) throw new Error("Gist ID 或 Token 无效");
+            const data = await res.json();
+            const content = data.files['ipip_answers.json'].content;
+            this.answers = JSON.parse(content);
+            // 同步一份到本地做备份
+            localStorage.setItem('ipip_answers', content);
+            console.log("✅ 云端同步成功");
+        } catch (e) {
+            console.error("❌ 云端加载失败，使用本地备份", e);
+            this.answers = JSON.parse(localStorage.getItem('ipip_answers')) || {};
+        }
+    },
+
+    // --- Gist 云端同步：保存数据 (PATCH) ---
+    async saveToGist() {
+        if (!this.gistConfig.id || !this.gistConfig.token) return;
+        try {
+            await fetch(`https://api.github.com/gists/${this.gistConfig.id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `token ${this.gistConfig.token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    files: {
+                        'ipip_answers.json': {
+                            content: JSON.stringify(this.answers)
+                        }
+                    }
+                })
+            });
+            console.log("☁️ 进度已实时保存至云端");
+        } catch (e) {
+            console.error("❌ 云端保存失败", e);
+        }
+    },
+
+    // --- 设置 Gist 弹窗 ---
+    setupGist() {
+        const id = prompt("请输入你的 Gist ID:", this.gistConfig.id);
+        const token = prompt("请输入你的 GitHub Token:", this.gistConfig.token);
+        if (id && token) {
+            localStorage.setItem('gist_id', id);
+            localStorage.setItem('gist_token', token);
+            alert("配置已保存，正在刷新同步进度...");
+            location.reload();
         }
     },
 
@@ -59,7 +149,6 @@ const app = {
         `;
         
         document.getElementById('question-card').innerHTML = html;
-        
         document.getElementById('prev-btn').style.visibility = (this.currentIndex === 0) ? 'hidden' : 'visible';
         
         const nextBtn = document.getElementById('next-btn');
@@ -84,6 +173,10 @@ const app = {
         element.classList.add('selected');
         
         this.updateProgress();
+        
+        // 自动触发云端同步（异步进行，不阻塞翻页）
+        this.saveToGist();
+
         setTimeout(() => this.goNext(), 300);
     },
 
@@ -91,6 +184,8 @@ const app = {
         const qNumber = this.questions[this.currentIndex].Number;
         this.answers[qNumber] = 'skip';
         localStorage.setItem('ipip_answers', JSON.stringify(this.answers));
+        
+        this.saveToGist(); // 同步跳过状态
         this.goNext();
     },
 
@@ -119,7 +214,6 @@ const app = {
         document.getElementById('progress-text').innerText = `已答 ${answeredCount} / ${this.questions.length} 题`;
     },
 
-    // ================= 新增：导入导出进度码功能 =================
     exportSaveCode() {
         if (Object.keys(this.answers).length === 0) {
             alert("你还没有答题记录哦！");
@@ -127,29 +221,28 @@ const app = {
         }
         const saveCode = btoa(JSON.stringify(this.answers));
         navigator.clipboard.writeText(saveCode).then(() => {
-            alert("✅ 进度码已复制到剪贴板！\n你可以通过微信发到手机上，在手机上点击【导入进度码】来恢复进度。");
+            alert("✅ 进度码已复制到剪贴板！");
         }).catch(() => {
-            prompt("你的浏览器不支持自动复制，请手动复制下方代码：", saveCode);
+            prompt("请手动复制下方代码：", saveCode);
         });
     },
 
     importSaveCode() {
         const code = prompt("请粘贴你的进度码：");
         if (!code) return;
-        
         try {
             const importedAnswers = JSON.parse(atob(code));
             if (typeof importedAnswers === 'object') {
                 this.answers = importedAnswers;
                 localStorage.setItem('ipip_answers', JSON.stringify(this.answers));
-                alert("🎉 进度恢复成功！页面将刷新加载新进度。");
+                this.saveToGist(); // 导入后顺便同步到云端
+                alert("🎉 进度恢复成功！");
                 location.reload(); 
             }
         } catch (e) {
-            alert("❌ 进度码格式不正确或已损坏！");
+            alert("❌ 进度码损坏！");
         }
     },
-    // =========================================================
 
     calculateScores() {
         const itemResults = [];
@@ -200,7 +293,7 @@ const app = {
 
     exportCSV() {
         const { itemResults } = this.calculateScores();
-        let csv = "\uFEFF题号(Number),分面(Facet),方向(Sign),原始分(Raw),计分(Scored),题目(Item)\n";
+        let csv = "\uFEFF题号,分面,方向,原始分,计分,题目\n";
         itemResults.forEach(r => csv += `${r.Number},${r.Facet},${r.Sign},${r.Raw},${r.Scored},${r.Item.replace(/,/g, "，")}\n`);
         this.triggerDownload(csv, "IPIP_NEO_Results.csv", "text/csv;charset=utf-8;");
     },
