@@ -1,51 +1,55 @@
-/* 全局锁定高度，防止页面出现整体滚动条 */
-html, body { height: 100vh; margin: 0; padding: 0; overflow: hidden; background-color: #f0f2f5; font-family: 'PingFang SC', sans-serif; color: #333;}
-body { display: flex; flex-direction: column; padding-top: 75px; box-sizing: border-box;}
+/* 使用 100dvh 解决手机浏览器地址栏遮挡底部的问题 */
+html, body { height: 100%; height: 100dvh; margin: 0; padding: 0; overflow: hidden; background-color: #f0f2f5; font-family: 'PingFang SC', sans-serif; color: #333;}
+body { display: flex; flex-direction: column; padding-top: 65px; box-sizing: border-box;}
 
-/* 顶部与 300 格进度条 */
 .header { position: fixed; top: 0; left: 0; width: 100%; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); z-index: 1000; padding: 12px 20px; box-sizing: border-box;}
 .progress-text { font-size: 14px; font-weight: bold; color: #555; margin-bottom: 8px;}
 .progress-container { display: flex; width: 100%; height: 8px; border-radius: 4px; overflow: hidden; background: #e0e0e0; gap: 0;}
 .prog-seg { flex: 1; background: #e0e0e0; transition: background 0.3s ease; }
-.prog-seg.done { background: #4caf50; } /* 绿色完成 */
-.prog-seg.skip { background: #ffc107; } /* 黄色跳过 */
+.prog-seg.done { background: #4caf50; }
+.prog-seg.skip { background: #ffc107; }
 
-/* 核心布局：利用 Flex 让控制栏始终贴底 */
-.container { flex: 1; display: flex; flex-direction: column; max-width: 900px; margin: 0 auto; width: 100%; padding: 15px 20px; box-sizing: border-box; min-height: 0;}
+.container { flex: 1; display: flex; flex-direction: column; max-width: 900px; margin: 0 auto; width: 100%; padding: 10px 15px; box-sizing: border-box; min-height: 0;}
 #quiz-screen { flex: 1; display: flex; flex-direction: column; min-height: 0;}
 
-/* 题目卡片：内容过多时仅卡片内部滚动 */
-.card { background: #fff; border-radius: 16px; padding: 30px 40px; box-shadow: 0 4px 16px rgba(0,0,0,0.04); flex: 1; display: flex; flex-direction: column; overflow-y: auto; margin-bottom: 20px;}
-.q-number { font-size: 16px; color: #888; margin-bottom: 15px; letter-spacing: 1px;}
-.q-title { font-size: 28px; font-weight: bold; margin-bottom: 25px; line-height: 1.4; color: #111;}
-.q-anchor { font-size: 18px; color: #444; background: #f4f6f8; border-left: 6px solid #2196f3; padding: 15px 20px; margin-bottom: 30px; white-space: pre-line; border-radius: 0 8px 8px 0; line-height: 1.6;}
+.card { background: #fff; border-radius: 12px; padding: 25px 30px; box-shadow: 0 4px 16px rgba(0,0,0,0.04); flex: 1; display: flex; flex-direction: column; overflow-y: auto; margin-bottom: 15px;}
+.q-number { font-size: 14px; color: #888; margin-bottom: 10px; letter-spacing: 1px;}
+.q-title { font-size: 24px; font-weight: bold; margin-bottom: 20px; line-height: 1.4; color: #111;}
+.q-anchor { font-size: 16px; color: #444; background: #f4f6f8; border-left: 5px solid #2196f3; padding: 12px 15px; margin-bottom: 20px; white-space: pre-line; border-radius: 0 6px 6px 0; line-height: 1.5;}
 
-/* 选项区域与互换顺序 */
-.options-area { margin-top: auto; flex-shrink: 0; display: flex; flex-direction: column; gap: 15px;}
+.options-area { margin-top: auto; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px;}
 .row-half { display: flex; justify-content: space-between; gap: 4%; padding: 0 10%;}
 .row-int { display: flex; justify-content: space-between; gap: 4%;}
 
-.opt-btn { flex: 1; padding: 16px 0; border: 2px solid #e0e0e0; background: #fff; border-radius: 12px; cursor: pointer; font-size: 22px; font-weight: bold; color: #555; transition: all 0.2s; text-align: center;}
+.opt-btn { flex: 1; padding: 12px 0; border: 2px solid #e0e0e0; background: #fff; border-radius: 10px; cursor: pointer; font-size: 20px; font-weight: bold; color: #555; transition: all 0.2s; text-align: center;}
 .opt-btn:hover { background: #f0f5ff; border-color: #2196f3; color: #2196f3;}
 .opt-btn.selected { background: #2196f3; color: #fff; border-color: #2196f3; box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);}
-.opt-btn span.label { display: block; font-size: 13px; font-weight: normal; margin-top: 6px; color: #888; }
+.opt-btn span.label { display: block; font-size: 12px; font-weight: normal; margin-top: 4px; color: #888; }
 .opt-btn.selected span.label { color: #e3f2fd; }
 
-/* 底部控制按钮 */
-.controls { display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; padding-bottom: 10px;}
-.right-controls { display: flex; gap: 15px; }
-.nav-btn { background: #fff; border: 1px solid #ccc; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; color: #555; transition: 0.2s; font-weight: bold;}
-.nav-btn:hover { background: #e0e0e0; }
+.controls { display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; padding-bottom: 15px; padding-top: 5px;}
+.right-controls { display: flex; gap: 10px; }
+.nav-btn { background: #fff; border: 1px solid #ccc; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 15px; color: #555; transition: 0.2s; font-weight: bold;}
 .skip-btn { color: #d84315; border-color: #ffb74d; background: #fff8e1;}
-.skip-btn:hover { background: #ffecb3; }
 
-/* 结果区代码与上文基本保持一致（省略以节省空间，功能仍在 JS 中实现） */
-.result-screen { display: none; background: #fff; border-radius: 16px; padding: 40px; overflow-y: auto; height: 100%;}
-.result-title { font-size: 32px; text-align: center; margin-bottom: 30px;}
-.export-actions { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-bottom: 40px;}
-.export-btn { padding: 15px 25px; color: white; border-radius: 8px; cursor: pointer; border: none; font-size: 16px; font-weight: bold; transition: 0.2s;}
-.export-btn:hover { opacity: 0.9; transform: translateY(-2px);}
-.btn-md { background: #2b3137; } .btn-json { background: #673ab7; } .btn-csv { background: #009688; }
+/* 专门针对手机屏幕的极致压榨空间 */
+@media (max-width: 600px) {
+    body { padding-top: 60px; }
+    .header { padding: 8px 10px; }
+    .container { padding: 5px 10px; }
+    .card { padding: 15px 15px; border-radius: 10px;}
+    .q-title { font-size: 20px; margin-bottom: 15px;}
+    .q-anchor { font-size: 15px; padding: 10px 12px; margin-bottom: 15px;}
+    .opt-btn { padding: 10px 0; font-size: 18px; }
+    .opt-btn span.label { font-size: 11px; }
+    .row-half { padding: 0 5%; }
+    .nav-btn { padding: 10px 12px; font-size: 14px;}
+}
+
+/* 结果区样式 */
+.result-screen { display: none; background: #fff; border-radius: 16px; padding: 30px 20px; overflow-y: auto; height: 100%;}
+.result-title { font-size: 28px; text-align: center; margin-bottom: 20px;}
 .result-table { width: 100%; border-collapse: collapse; margin-top: 15px;}
-.result-table th, .result-table td { border: 1px solid #ddd; padding: 12px; text-align: center;}
+.result-table th, .result-table td { border: 1px solid #ddd; padding: 10px; text-align: center;}
 .result-table th { background-color: #f8f9fa;}
+.export-btn { padding: 12px 15px; color: white; border-radius: 8px; cursor: pointer; border: none; font-size: 14px; font-weight: bold; margin: 5px; background: #2b3137;}

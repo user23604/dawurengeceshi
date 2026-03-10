@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>大五人格测试 (IPIP-NEO-300)</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -10,10 +10,10 @@
     <div class="header">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <div class="progress-text" id="progress-text">加载中...</div>
-            <div>
-                <button onclick="app.exportSaveCode()" style="padding: 4px 10px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 12px;">📤 导出进度码</button>
-                <button onclick="app.importSaveCode()" style="padding: 4px 10px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 12px; margin-left: 5px;">📥 导入进度码</button>
-                <button onclick="app.setupGist()" style="padding: 4px 10px; cursor: pointer; border: 1px solid #2196f3; border-radius: 4px; background: #e3f2fd; font-size: 12px; margin-left: 5px; font-weight: bold; color: #1976d2;">☁️ 配置云同步</button>
+            <div style="display: flex; gap: 5px;">
+                <button onclick="app.exportSaveCode()" style="padding: 4px 8px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 12px;">📤 导出</button>
+                <button onclick="app.importSaveCode()" style="padding: 4px 8px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 12px;">📥 导入</button>
+                <button onclick="app.setupGist()" style="padding: 4px 8px; cursor: pointer; border: 1px solid #2196f3; border-radius: 4px; background: #e3f2fd; font-size: 12px; font-weight: bold; color: #1976d2;">☁️ 云同步</button>
             </div>
         </div>
         <div class="progress-container" id="progress-bar"></div>
@@ -24,11 +24,10 @@
             <div class="card" id="question-card">
                 <div style="text-align:center; padding: 50px; font-size: 20px;">正在加载题库...</div>
             </div>
-            
             <div class="controls">
                 <button class="nav-btn" id="prev-btn" onclick="app.goPrev()">← 上一题</button>
                 <div class="right-controls">
-                    <button class="nav-btn skip-btn" id="skip-btn" onclick="app.skipQuestion()">跳过 (Skip) ⏭</button>
+                    <button class="nav-btn skip-btn" id="skip-btn" onclick="app.skipQuestion()">跳过 ⏭</button>
                     <button class="nav-btn" id="next-btn" onclick="app.goNext()">下一题 →</button>
                 </div>
             </div>
@@ -36,16 +35,12 @@
 
         <div id="result-screen" class="result-screen">
             <h2 class="result-title">测试完成 🎉</h2>
-            <div class="export-actions">
-                <button class="export-btn btn-md" onclick="app.exportMarkdown()">📝 导出 Markdown</button>
-                <button class="export-btn btn-json" onclick="app.exportJSON()">📦 导出 JSON</button>
-                <button class="export-btn btn-csv" onclick="app.exportCSV()">📊 导出 CSV</button>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <button class="export-btn" onclick="app.exportCSV()">📊 导出详细数据 (CSV)</button>
             </div>
-            
             <div class="summary-section">
-                <h3>五大核心特质 (Domains) 得分</h3>
                 <table class="result-table" id="domain-table">
-                    <thead><tr><th>特质 (Trait)</th><th>总分</th><th>平均分(1-5)</th></tr></thead>
+                    <thead><tr><th>特质 (Trait)</th><th>计分题数</th><th>总分</th></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
