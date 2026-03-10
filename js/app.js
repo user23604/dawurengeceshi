@@ -88,7 +88,6 @@ const app = {
             const res = await fetch(url, { 
                 headers: { 
                     'Authorization': `token ${cleanToken}`, 
-                    'Cache-Control': 'no-cache' 
                 }
             });
             
