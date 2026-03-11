@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>大五人格测试 (IPIP-NEO-300)</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script>
         var link = document.createElement('link');
         link.rel = 'stylesheet';
@@ -19,7 +20,8 @@
                 <span id="sync-status" style="font-size: 12px; font-weight: bold;"></span>
             </div>
             <div style="display: flex; gap: 5px;">
-                <button onclick="app.exportSaveCode()" style="padding: 4px 8px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 12px;">📤 导出</button>
+                <button onclick="app.showHistoryModal()" style="padding: 4px 8px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 12px;">📜 历史</button>
+                <button onclick="app.exportSaveCode()" style="padding: 4px 8px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 12px;">📤 导出码</button>
                 <button onclick="app.importSaveCode()" style="padding: 4px 8px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: #fff; font-size: 12px;">📥 导入</button>
                 <button onclick="app.setupGist()" style="padding: 4px 8px; cursor: pointer; border: 1px solid #2196f3; border-radius: 4px; background: #e3f2fd; font-size: 12px; font-weight: bold; color: #1976d2;">☁️ 云同步</button>
             </div>
@@ -43,8 +45,9 @@
 
         <div id="result-screen" class="result-screen">
             <h2 class="result-title">测试完成 🎉</h2>
-            <div style="text-align: center; margin-bottom: 20px;">
-                <button class="export-btn" onclick="app.exportCSV()">📊 导出详细数据 (CSV)</button>
+            <div style="text-align: center; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; align-items: center;">
+                <button class="export-btn" onclick="app.exportExcel()" style="background: #4caf50; font-size: 16px; padding: 15px 30px;">📊 下载专业分析报告 (Excel)</button>
+                <button class="export-btn" onclick="app.archiveAndRestart()" style="background: #ff9800; font-size: 14px;">🔄 保存本次进度到历史，并重新测验</button>
             </div>
             <div class="summary-section">
                 <table class="result-table" id="domain-table">
@@ -58,10 +61,7 @@
     <script>
         var script = document.createElement('script');
         script.src = 'js/app.js?t=' + new Date().getTime();
-        script.onload = function() {
-            // 确保 JS 下载完后立刻运行，绝不卡死
-            app.init();
-        };
+        script.onload = function() { app.init(); };
         document.body.appendChild(script);
     </script>
 </body>
