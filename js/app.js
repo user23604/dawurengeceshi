@@ -442,21 +442,22 @@ const app = {
         const doubtText = hasDoubt ? this.doubts[q.Number] : '';
 
         let html = `
-            <div class="q-number">题目进度： ${this.currentIndex + 1} / ${this.questions.length}</div>
+            <div class="q-number">题目 ${this.currentIndex + 1} / ${this.questions.length}</div>
             <div class="q-title">${q.Item}</div>
             <div class="q-anchor">${parsedAnchor}</div>
             <div class="options-area">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; padding: 0 5%; transition: all 0.3s;">
-                    <div onclick="app.toggleDoubt(${q.Number})" style="cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; background: ${hasDoubt ? '#fff3e0' : '#f5f5f5'}; color: ${hasDoubt ? '#f57c00' : '#888'}; font-weight: bold; font-size: 14px; border: 1px solid ${hasDoubt ? '#ffcc80' : '#e0e0e0'};">
-                        <span style="font-size: 16px;">❓</span> ${hasDoubt ? '取消疑问' : '有疑问'}
-                    </div>
-                    <input type="text" id="doubt-input-${q.Number}" placeholder="具体是哪里有疑问？" value="${doubtText}" onblur="app.saveDoubt(${q.Number}, this.value)" style="flex: 1; margin-left: 12px; padding: 8px 12px; border: 1px solid #ffb74d; border-radius: 6px; outline: none; font-size: 14px; display: ${hasDoubt ? 'block' : 'none'}; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+                    <button class="doubt-toggle ${hasDoubt ? 'active' : ''}" onclick="app.toggleDoubt(${q.Number})">
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        ${hasDoubt ? '取消疑问' : '添加疑问'}
+                    </button>
+                    ${hasDoubt ? `<input type="text" id="doubt-input-${q.Number}" class="apple-input" placeholder="具体是哪里有疑问？" value="${doubtText}" onblur="app.saveDoubt(${q.Number}, this.value)" style="flex: 1;">` : ''}
                 </div>
                 <div class="row-int">
                     ${[1, 2, 3, 4, 5].map(v => `<div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" onclick="app.selectOption(${q.Number}, ${v}, this)">${v} <span class="label">${labels[v]}</span></div>`).join('')}
                 </div>
                 <div class="row-half">
-                    ${[1.5, 2.5, 3.5, 4.5].map(v => `<div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" onclick="app.selectOption(${q.Number}, ${v}, this)">${v}</div>`).join('')}
+                    ${[1.5, 2.5, 3.5, 4.5].map(v => `<div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" onclick="app.selectOption(${q.Number}, ${v}, this)" style="padding: 12px 0;">${v}</div>`).join('')}
                 </div>
             </div>`;
         
