@@ -2,14 +2,26 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#8b5cf6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>大五人格测试 (IPIP-NEO-300)</title>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="css/style.css">
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- Apache ECharts for Data Visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script>
-        var link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'css/style.css?t=' + new Date().getTime();
-        document.head.appendChild(link);
+        // Register Service Worker for PWA Offline Support
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => console.log('SW registered:', registration.scope))
+                    .catch(err => console.error('SW registration failed:', err));
+            });
+        }
     </script>
 </head>
 <body>
@@ -72,6 +84,8 @@
                 </button>
             </div>
             <div class="summary-section">
+                <!-- Echarts Radar container -->
+                <div id="radar-chart" style="width: 100%; height: 350px; margin-bottom: 20px;"></div>
                 <table class="result-table" id="domain-table">
                     <thead><tr><th>人格特质</th><th>计分题数</th><th>原始分</th></tr></thead>
                     <tbody></tbody>

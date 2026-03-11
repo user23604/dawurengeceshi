@@ -29,7 +29,7 @@ const app = {
             document.body.innerHTML = `
                 <div style="text-align:center; margin-top:100px; font-family:sans-serif; padding: 20px;">
                     <h2>🔒 受保护的内容</h2>
-                    <p style="color:#666; margin-bottom:20px;">请输入暗号进入测试：</p>
+                    <p style="color:var(--text-muted); margin-bottom:20px;">请输入暗号进入测试：</p>
                     <input type="password" id="pwd" style="padding:12px; width:80%; max-width:200px; border-radius:5px; border:1px solid #ccc; font-size:16px;">
                     <br><br>
                     <button onclick="const k=document.getElementById('pwd').value; if(k==='${CORRECT_KEY}'){localStorage.setItem('access_key',k); location.reload();}else{alert('密码错误');}" style="padding:12px 30px; cursor:pointer; background:#2196f3; color:#fff; border:none; border-radius:5px; font-size:16px;">进入</button>
@@ -41,6 +41,52 @@ const app = {
 
         try {
             const timestamp = new Date().getTime();
+            // ==========================================
+// Big Tech Feature: AES-256 GCM Encryption via Web Crypto API
+// ==========================================
+const CryptoUtil = {
+    async deriveKey(password) {
+        const enc = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey(
+            "raw", enc.encode(password), {name: "PBKDF2"}, false, ["deriveBits", "deriveKey"]
+        );
+        return window.crypto.subtle.deriveKey(
+            { name: "PBKDF2", salt: enc.encode("ipip-neo-salt-v1"), iterations: 100000, hash: "SHA-256" },
+            keyMaterial, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]
+        );
+    },
+    async encrypt(data, password) {
+        const key = await this.deriveKey(password);
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const enc = new TextEncoder();
+        const ciphertext = await window.crypto.subtle.encrypt(
+            { name: "AES-GCM", iv: iv }, key, enc.encode(data)
+        );
+        return {
+            iv: Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join(''),
+            data: btoa(String.fromCharCode(...new Uint8Array(ciphertext)))
+        };
+    },
+    async decrypt(encryptedObj, password) {
+        try {
+            const key = await this.deriveKey(password);
+            const iv = new Uint8Array(encryptedObj.iv.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+            const ciphertext = Uint8Array.from(atob(encryptedObj.data), c => c.charCodeAt(0));
+            const decrypted = await window.crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: iv }, key, ciphertext
+            );
+            return new TextDecoder().decode(decrypted);
+        } catch (e) {
+            console.error("Decryption failed:", e);
+            throw new Error("Decryption failed. Incorrect password or corrupted data.");
+        }
+    }
+};
+
+const GIST_DESC = "IPIP-NEO-300 Test Sync Data";
+const GIST_FILENAME = 'ipip_answers.json';
+this.accessKey = localStorage.getItem('access_key'); // 用于加密的密钥
+
             const response = await fetch(`data/questions.json?t=${timestamp}`);
             if(!response.ok) throw new Error("无法读取题库文件");
             this.questions = await response.json();
@@ -101,7 +147,7 @@ const app = {
             this.needsSync = false;
             this.saveToGist();
         } else {
-            if(statusEl) statusEl.innerHTML = `<span style='color:#888;'>💾 本地秒存 (冷却中)</span>`;
+            if(statusEl) statusEl.innerHTML = `<span style='color:var(--text-muted);'>💾 本地秒存 (冷却中)</span>`;
             if (!this.syncTimer) {
                 this.syncTimer = setTimeout(() => {
                     this.syncTimer = null;
@@ -132,6 +178,25 @@ const app = {
         }
     },
 
+    // Helper to export current state for Gist
+    exportState() {
+        return {
+            answers: this.answers,
+            doubts: this.doubts,
+            history: this.history,
+            update_time: this.updateTime
+        };
+    },
+
+    // Helper to import state from Gist
+    importState(state) {
+        this.answers = state.answers !== undefined ? state.answers : {};
+        this.doubts = state.doubts || {};
+        this.history = state.history || [];
+        this.updateTime = state.update_time || 0;
+        localStorage.setItem('ipip_answers', JSON.stringify({ answers: this.answers, doubts: this.doubts, history: this.history, update_time: this.updateTime }));
+    },
+
     async loadFromGist() {
         const statusEl = document.getElementById('sync-status');
         if(statusEl) { statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 检查云端更新...</span>"; statusEl.onclick = null; }
@@ -145,32 +210,51 @@ const app = {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             
             const data = await res.json();
-            if (!data.files || !data.files['ipip_answers.json']) throw new Error("云端无对应文件");
-
-            let content;
-            try { content = JSON.parse(data.files['ipip_answers.json'].content); } catch (e) { throw new Error("云端数据结构损坏"); }
             
-            if (content && typeof content === 'object') {
-                const cloudAnswers = content.answers !== undefined ? content.answers : content;
-                const cloudDoubts = content.doubts || content["疑问"] || {};
-                const cloudHistory = content.history || []; // 提取云端历史
-                const cloudUpdateTime = content.update_time || 0;
-
-                if (cloudUpdateTime > this.updateTime) {
-                    this.answers = cloudAnswers;
-                    this.doubts = cloudDoubts;
-                    this.history = cloudHistory; // 覆盖历史
-                    this.updateTime = cloudUpdateTime;
-                    localStorage.setItem('ipip_answers', JSON.stringify({ answers: this.answers, doubts: this.doubts, history: this.history, update_time: this.updateTime })); 
-                    
-                    if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已拉取云端进度</span>";
-                    if(document.getElementById('question-card').innerHTML !== '') { this.updateProgress(); this.renderQuestion(); }
-                } else if (this.updateTime > cloudUpdateTime) {
-                    if(statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>🚀 本地超前，推送中...</span>";
-                    this.forceCloudSync();
-                } else {
-                    if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 保持同步</span>";
+            if (data.files && data.files[GIST_FILENAME]) {
+                if(statusEl) statusEl.textContent = '读取云端数据解密中...';
+                const file = data.files[GIST_FILENAME];
+                if (file) {
+                    try {
+                        const encryptedObj = JSON.parse(file.content);
+                        const decryptedStr = await CryptoUtil.decrypt(encryptedObj, this.accessKey);
+                        const state = JSON.parse(decryptedStr);
+                        
+                        if (state.update_time > this.updateTime) {
+                            this.importState(state);
+                            if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已拉取云端进度</span>";
+                            if(document.getElementById('question-card').innerHTML !== '') { this.updateProgress(); this.renderQuestion(); }
+                        } else if (this.updateTime > state.update_time) {
+                            if(statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>🚀 本地超前，推送中...</span>";
+                            this.forceCloudSync();
+                        } else {
+                            if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 保持同步</span>";
+                        }
+                    } catch(e) {
+                        console.error('解密失败:', e);
+                        // Fallback parsing for old unencrypted base64 data to avoid breaking existing users during upgrade
+                        try {
+                            const decoded = decodeURIComponent(atob(file.content));
+                            const state = JSON.parse(decoded);
+                            if (state.update_time > this.updateTime) {
+                                this.importState(state);
+                                if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 云端旧格式已同步</span>";
+                                if(document.getElementById('question-card').innerHTML !== '') { this.updateProgress(); this.renderQuestion(); }
+                            } else if (this.updateTime > state.update_time) {
+                                if(statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>🚀 本地超前，推送中...</span>";
+                                this.forceCloudSync();
+                            } else {
+                                if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 保持同步</span>";
+                            }
+                        } catch (e2) {
+                            alert('云端数据格式错误或解密失败，请检查授权码是否正确。');
+                            if(statusEl) statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer;'>❌ 同步失败(点我)</span>";
+                            statusEl.onclick = () => alert(`🚨 拉取失败: ${e.message}\n旧格式解析失败: ${e2.message}`);
+                        }
+                    }
                 }
+            } else {
+                throw new Error("云端无对应文件");
             }
         } catch (e) {
             console.error("【同步拉取异常】", e);
@@ -188,14 +272,16 @@ const app = {
         
         try {
             // 打包所有数据，包含 history
-            const payload = { answers: this.answers, doubts: this.doubts, history: this.history, update_time: this.updateTime };
+            const statePayload = { answers: this.answers, doubts: this.doubts, history: this.history, update_time: this.updateTime };
+            const encryptedPayload = await CryptoUtil.encrypt(JSON.stringify(statePayload), this.accessKey);
+            
             const cleanId = this.gistConfig.id.trim();
             const cleanToken = this.gistConfig.token.trim();
             
             const res = await this.fetchWithTimeout(`https://api.github.com/gists/${cleanId}`, {
                 method: 'PATCH',
                 headers: { 'Authorization': `Bearer ${cleanToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ files: { 'ipip_answers.json': { content: JSON.stringify(payload) } } })
+                body: JSON.stringify({ files: { 'ipip_answers.json': { content: JSON.stringify(encryptedPayload) } } })
             }, 10000);
             
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -246,15 +332,15 @@ const app = {
         let oldModal = document.getElementById('history-modal');
         if (oldModal) oldModal.remove();
 
-        let listHtml = this.history.length === 0 ? '<div style="text-align:center; padding: 30px; color:#888;">暂无历史归档记录</div>' : '';
+        let listHtml = this.history.length === 0 ? '<div style="text-align:center; padding: 30px; color:var(--text-muted);">暂无历史归档记录</div>' : '';
         
         this.history.forEach((h, index) => {
             const ansCount = Object.keys(h.answers).length;
             listHtml += `
-            <div style="border:1px solid #e0e0e0; padding:15px; border-radius:10px; margin-bottom:12px; background:#fafafa; display:flex; justify-content:space-between; align-items:center;">
+            <div style="border:1px solid var(--border-color); padding:15px; border-radius:10px; margin-bottom:12px; background:var(--bg-secondary); display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <div style="font-weight:bold; color:#333; font-size: 15px;">档案 ${this.history.length - index}</div>
-                    <div style="font-size:12px; color:#888; margin-top:6px;">🕒 ${h.date} | 已答 ${ansCount} 题</div>
+                    <div style="font-weight:bold; color:var(--text-main); font-size: 15px;">档案 ${this.history.length - index}</div>
+                    <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">🕒 ${h.date} | 已答 ${ansCount} 题</div>
                 </div>
                 <div style="display:flex; gap:8px;">
                     <button onclick="app.exportExcel(${index})" style="padding:6px 12px; border:none; background:#4caf50; color:#fff; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;">📊 下载报告</button>
@@ -265,10 +351,10 @@ const app = {
 
         const modalHtml = `
         <div id="history-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center;">
-            <div style="background:#fff; padding:25px; border-radius:16px; width:90%; max-width:450px; max-height:80vh; display:flex; flex-direction:column; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="background:var(--bg-primary); border:1px solid var(--border-color); padding:25px; border-radius:16px; width:90%; max-width:450px; max-height:80vh; display:flex; flex-direction:column; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
-                    <h3 style="margin:0; font-size:20px; color:#111;">📜 历史归档记录</h3>
-                    <button onclick="document.getElementById('history-modal').remove()" style="background:none; border:none; font-size:24px; color:#888; cursor:pointer;">&times;</button>
+                    <h3 style="margin:0; font-size:20px; color:var(--text-main);">📜 历史归档记录</h3>
+                    <button onclick="document.getElementById('history-modal').remove()" style="background:none; border:none; font-size:24px; color:var(--text-muted); cursor:pointer;">&times;</button>
                 </div>
                 <div style="overflow-y:auto; flex:1; padding-right:5px;">
                     ${listHtml}
@@ -287,7 +373,7 @@ const app = {
     },
 
     // --- 🌟 核心升级：大厂级 Excel 纯前端生成器 ---
-    exportExcel(historyIndex = null) {
+    async exportExcel(historyIndex = null) {
         if (typeof XLSX === 'undefined') {
             alert("Excel 引擎仍在加载，请等待几秒钟后再点！");
             return;
@@ -300,8 +386,8 @@ const app = {
 
         if (Object.keys(targetAnswers).length === 0) return alert("该记录中没有答题数据！");
 
-        // 计算所有得分数据
-        const { itemResults, domainStats, facetStats } = this.calculateScoresData(targetAnswers, targetDoubts);
+        // 计算所有得分数据 (Offloaded to Web Worker)
+        const { itemResults, domainStats, facetStats } = await this.calculateScoresData(targetAnswers, targetDoubts);
         
         // 创建空的工作簿
         const wb = XLSX.utils.book_new();
@@ -335,45 +421,77 @@ const app = {
         XLSX.writeFile(wb, `IPIP_NEO_专业分析报告_${targetDate}.xlsx`);
     },
 
-    // 内部剥离的计算引擎，支持对任意对象（当前/历史）进行计分
+    // 内部剥离的计算引擎，使用 Web Worker 进行多线程免主线程卡顿计算
     calculateScoresData(ansObj, doubtObj) {
-        const itemResults = [];
-        const domainStats = { N: {sum:0, count:0}, E: {sum:0, count:0}, O: {sum:0, count:0}, A: {sum:0, count:0}, C: {sum:0, count:0} };
-        const facetStats = {};
-
-        this.questions.forEach(q => {
-            let ans = ansObj[q.Number];
-            if (ans && ans !== 'skip') {
-                let scored = q.Sign === "_" ? 6 - ans : ans;
-                
-                // 大维度统计
-                domainStats[q.Facet.charAt(0)].sum += scored;
-                domainStats[q.Facet.charAt(0)].count += 1;
-                
-                // 子面统计 (如 N1, N2)
-                if (!facetStats[q.Facet]) facetStats[q.Facet] = { sum: 0, count: 0 };
-                facetStats[q.Facet].sum += scored;
-                facetStats[q.Facet].count += 1;
-
-                const doubt = doubtObj[q.Number] || '';
-                itemResults.push({ Number: q.Number, Facet: q.Facet, Sign: q.Sign, Raw: ans, Scored: scored, Doubt: doubt, Item: q.Item });
-            }
+        return new Promise((resolve, reject) => {
+            const worker = new Worker('js/worker.js');
+            worker.onmessage = (e) => {
+                resolve(e.data);
+                worker.terminate();
+            };
+            worker.onerror = (err) => {
+                console.error("Worker计算失败:", err);
+                reject(err);
+                worker.terminate();
+            };
+            worker.postMessage({
+                questions: this.questions,
+                ansObj: ansObj,
+                doubtObj: doubtObj
+            });
         });
-        return { itemResults, domainStats, facetStats };
     },
 
     // 供结果页展示用的简易计算器
-    calculateScores() { return this.calculateScoresData(this.answers, this.doubts); },
-    showResults() {
+    async calculateScores() { return await this.calculateScoresData(this.answers, this.doubts); },
+    async showResults() {
         document.getElementById('quiz-screen').style.display = 'none';
         document.getElementById('result-screen').style.display = 'block';
-        const { domainStats } = this.calculateScores();
+        document.querySelector('#domain-table tbody').innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 40px; color: var(--text-muted);">正在进行大数据分析处理... (依托 Web Worker)</td></tr>';
+
+        const { domainStats } = await this.calculateScores();
         let html = "";
+        
+        const chartData = [];
+        const chartIndicator = [];
+
         for (let d in domainStats) {
-            if(domainStats[d].count > 0) html += `<tr><td><strong>${this.domainMap[d]}</strong></td><td>${domainStats[d].count}</td><td>${domainStats[d].sum}</td></tr>`;
+            if(domainStats[d].count > 0) {
+                html += `<tr><td><strong>${this.domainMap[d]}</strong></td><td>${domainStats[d].count}</td><td>${domainStats[d].sum}</td></tr>`;
+                // Neo scale max is 5 per question. count * 5 is max score
+                chartIndicator.push({ name: this.domainMap[d], max: domainStats[d].count * 5 });
+                chartData.push(domainStats[d].sum);
+            }
         }
         document.querySelector('#domain-table tbody').innerHTML = html;
         this.forceCloudSync(); 
+
+        // Render ECharts Radar Chart
+        setTimeout(() => {
+            if (typeof echarts !== 'undefined' && chartData.length > 0) {
+                const chartDom = document.getElementById('radar-chart');
+                const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const myChart = echarts.init(chartDom, isDarkMode ? 'dark' : 'light');
+                const option = {
+                    backgroundColor: 'transparent',
+                    radar: {
+                        indicator: chartIndicator,
+                        radius: '65%',
+                        splitNumber: 4,
+                        axisName: { color: isDarkMode ? '#fafafa' : '#18181b', fontSize: 13, fontWeight: 'bold' }
+                    },
+                    series: [{
+                        name: '大五人格',
+                        type: 'radar',
+                        data: [{ value: chartData, name: '您的得分' }],
+                        itemStyle: { color: '#8b5cf6' },
+                        areaStyle: { color: 'rgba(139, 92, 246, 0.4)' },
+                    }]
+                };
+                myChart.setOption(option);
+                window.addEventListener('resize', () => { myChart.resize(); });
+            }
+        }, 100);
     },
 
     // --- 交互及杂项代码维持原样 ---
@@ -398,14 +516,14 @@ const app = {
         if (oldModal) oldModal.remove();
         const modalHtml = `
         <div id="gist-modal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; display:flex; justify-content:center; align-items:center;">
-            <div style="background:#fff; padding:25px; border-radius:16px; width:85%; max-width:400px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
-                <h3 style="margin-top:0; font-size:20px; color:#111;">☁️ 配置云同步</h3>
-                <p style="font-size:14px; color:#666; margin-bottom: 15px;">请输入配置以打通云端数据库：</p>
-                <input type="text" id="g-id" placeholder="Gist ID" value="${this.gistConfig.id}" style="width:100%; padding:12px; margin-bottom:15px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; font-size:14px;">
-                <input type="text" id="g-token" placeholder="GitHub Token (ghp_...)" value="${this.gistConfig.token}" style="width:100%; padding:12px; margin-bottom:20px; border:1px solid #ccc; border-radius:8px; box-sizing:border-box; font-size:14px;">
+            <div style="background:var(--bg-primary); border:1px solid var(--border-color); padding:25px; border-radius:16px; width:85%; max-width:400px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+                <h3 style="margin-top:0; font-size:20px; color:var(--text-main);">☁️ 配置云同步</h3>
+                <p style="font-size:14px; color:var(--text-muted); margin-bottom: 15px;">请输入配置以打通云端数据库：</p>
+                <input type="text" id="g-id" placeholder="Gist ID" value="${this.gistConfig.id}" style="width:100%; padding:12px; margin-bottom:15px; border:1px solid var(--border-color); border-radius:8px; box-sizing:border-box; font-size:14px; background:var(--bg-secondary); color:var(--text-main);">
+                <input type="text" id="g-token" placeholder="GitHub Token (ghp_...)" value="${this.gistConfig.token}" style="width:100%; padding:12px; margin-bottom:20px; border:1px solid var(--border-color); border-radius:8px; box-sizing:border-box; font-size:14px; background:var(--bg-secondary); color:var(--text-main);">
                 <div style="display:flex; justify-content:flex-end; gap:12px;">
-                    <button onclick="document.getElementById('gist-modal').remove()" style="padding:10px 18px; border:none; background:#f0f0f0; border-radius:8px; cursor:pointer; font-size:14px; color:#555;">取消</button>
-                    <button onclick="const id=document.getElementById('g-id').value.trim(); const tk=document.getElementById('g-token').value.trim(); if(id&&tk){localStorage.setItem('gist_id',id); localStorage.setItem('gist_token',tk); location.reload();}else{alert('不能为空');}" style="padding:10px 18px; border:none; background:#2196f3; color:#fff; border-radius:8px; cursor:pointer; font-size:14px; font-weight:bold;">保存并刷新</button>
+                    <button onclick="document.getElementById('gist-modal').remove()" style="padding:10px 18px; border:none; background:var(--bg-secondary); border-radius:8px; cursor:pointer; font-size:14px; color:var(--text-main);">取消</button>
+                    <button onclick="const id=document.getElementById('g-id').value.trim(); const tk=document.getElementById('g-token').value.trim(); if(id&&tk){localStorage.setItem('gist_id',id); localStorage.setItem('gist_token',tk); location.reload();}else{alert('不能为空');}" style="padding:10px 18px; border:none; background:var(--purple); color:#fff; border-radius:8px; cursor:pointer; font-size:14px; font-weight:bold;">保存并刷新</button>
                 </div>
             </div>
         </div>`;
@@ -432,10 +550,10 @@ const app = {
             if(line.startsWith('•')) {
                 return `<div style="display: flex; align-items: flex-start; margin-bottom: 12px;">
                             <span style="color: #8c9eff; margin-right: 12px; font-weight: bold; font-size: 18px; line-height: 1.6;">•</span>
-                            <span style="flex: 1; line-height: 1.6; color: #333333; text-align: justify;">${line.substring(1).trim()}</span>
+                            <span style="flex: 1; line-height: 1.6; color: var(--text-main); text-align: justify;">${line.substring(1).trim()}</span>
                         </div>`;
             }
-            return `<div style="margin-bottom: 8px; line-height: 1.6; color: #555;">${line}</div>`;
+            return `<div style="margin-bottom: 8px; line-height: 1.6; color: var(--text-muted);">${line}</div>`;
         }).join('');
 
         const hasDoubt = this.doubts[q.Number] !== undefined;
