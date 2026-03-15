@@ -233,20 +233,50 @@
                 <div id="success-msg" class="success-msg">✓ 感谢您的反馈！您的意见对我们非常重要。</div>
             </div>
         </div>
+
+        <!-- Admin View Area -->
+        <div id="admin-panel" style="display: none; margin-top: 40px; text-align: left; padding: 20px; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid var(--card-border);">
+            <h3 style="color: #a78bfa; margin-bottom: 16px;">🛡️ 管理员面板：用户反馈列表</h3>
+            <div id="admin-feedbacks-container" style="max-height: 300px; overflow-y: auto; color: var(--text-main); font-size: 0.95rem;"></div>
+            <button onclick="clearFeedbacks()" class="btn-submit" style="margin-top: 15px; background: #ef4444; padding: 8px 16px; font-size: 14px;">清除所有反馈</button>
+        </div>
+
     </div>
 
     <script>
         const CORRECT_KEY = '11115555';
+
+        function renderAdminFeedbacks() {
+            const feedbacks = JSON.parse(localStorage.getItem('site_feedbacks') || '[]');
+            const container = document.getElementById('admin-feedbacks-container');
+            if (feedbacks.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">暂无反馈</div>';
+                return;
+            }
+            container.innerHTML = feedbacks.reverse().map(f => 
+                `<div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+                    <div style="font-size: 12px; color: #8c9eff; margin-bottom: 6px;">[${f.time}]</div>
+                    <div>${f.text}</div>
+                </div>`
+            ).join('');
+        }
 
         function checkAccess() {
             const urlParams = new URLSearchParams(window.location.search);
             const keyFromUrl = urlParams.get('key');
             if (keyFromUrl === CORRECT_KEY) localStorage.setItem('access_key', keyFromUrl);
 
-            if (localStorage.getItem('access_key') !== CORRECT_KEY) {
+            const activeKey = localStorage.getItem('access_key');
+            if (activeKey !== CORRECT_KEY) {
                 document.querySelector('.container').style.display = 'none';
                 const pwdDiv = document.getElementById('pwd-screen');
                 pwdDiv.style.display = 'flex';
+            } else {
+                // Feature: If they are the "admin" (knowing 11115555), show feedbacks
+                if (activeKey === '11115555') {
+                    document.getElementById('admin-panel').style.display = 'block';
+                    renderAdminFeedbacks();
+                }
             }
         }
 
@@ -271,12 +301,28 @@
                 alert('反馈内容不能为空哦');
                 return;
             }
+            
+            // Save to localStorage
+            const feedbacks = JSON.parse(localStorage.getItem('site_feedbacks') || '[]');
+            feedbacks.push({ time: new Date().toLocaleString(), text: val.replace(/</g, "&lt;").replace(/>/g, "&gt;") });
+            localStorage.setItem('site_feedbacks', JSON.stringify(feedbacks));
+
             document.getElementById('feedback-input').value = '';
             document.getElementById('success-msg').style.display = 'block';
+            
+            if (localStorage.getItem('access_key') === '11115555') renderAdminFeedbacks();
+            
             setTimeout(() => {
                 document.getElementById('success-msg').style.display = 'none';
                 document.getElementById('feedback-box').classList.remove('active');
             }, 3000);
+        }
+
+        function clearFeedbacks() {
+            if(confirm("确定清空所有收集到的反馈吗？")) {
+                localStorage.removeItem('site_feedbacks');
+                renderAdminFeedbacks();
+            }
         }
     </script>
 </body>

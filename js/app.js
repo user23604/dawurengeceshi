@@ -335,7 +335,10 @@ this.accessKey = localStorage.getItem('access_key'); // 用于加密的密钥
                     }
                 }
             } else {
-                throw new Error("云端无对应文件");
+                // File does not exist in Gist yet (e.g., first time doing PID-5 while Big Five file exists)
+                // We should NOT throw an error. Instead, push local to create it.
+                if(statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>☁️ 云端新建文件中...</span>";
+                this.forceCloudSync();
             }
         } catch (e) {
             console.error("【同步拉取异常】", e);
