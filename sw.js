@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ipip-neo-v3';
+const CACHE_NAME = 'ipip-neo-v4';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -7,10 +7,7 @@ const ASSETS_TO_CACHE = [
     './js/app.js',
     './js/worker.js',
     './data/questions.json',
-    './data/PID-5-questions_web_ready.json',
-    './data/PID5_题库_web_ready.json',
-    './data/scoring_keys.json',
-    './data/results.json'
+    './data/PID5_题库_web_ready.json'
 ];
 
 // Install Event: Cache all critical assets
