@@ -1,3 +1,46 @@
+// ==========================================
+// AES-256 GCM Encryption via Web Crypto API
+// Defined at MODULE LEVEL so all app methods can access it
+// ==========================================
+const CryptoUtil = {
+    async deriveKey(password) {
+        const enc = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey(
+            "raw", enc.encode(password), {name: "PBKDF2"}, false, ["deriveBits", "deriveKey"]
+        );
+        return window.crypto.subtle.deriveKey(
+            { name: "PBKDF2", salt: enc.encode("ipip-neo-salt-v1"), iterations: 100000, hash: "SHA-256" },
+            keyMaterial, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]
+        );
+    },
+    async encrypt(data, password) {
+        const key = await this.deriveKey(password);
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const enc = new TextEncoder();
+        const ciphertext = await window.crypto.subtle.encrypt(
+            { name: "AES-GCM", iv: iv }, key, enc.encode(data)
+        );
+        return {
+            iv: Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join(''),
+            data: btoa(String.fromCharCode(...new Uint8Array(ciphertext)))
+        };
+    },
+    async decrypt(encryptedObj, password) {
+        try {
+            const key = await this.deriveKey(password);
+            const iv = new Uint8Array(encryptedObj.iv.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+            const ciphertext = Uint8Array.from(atob(encryptedObj.data), c => c.charCodeAt(0));
+            const decrypted = await window.crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: iv }, key, ciphertext
+            );
+            return new TextDecoder().decode(decrypted);
+        } catch (e) {
+            console.error("Decryption failed:", e);
+            throw new Error("Decryption failed. Incorrect password or corrupted data.");
+        }
+    }
+};
+
 const app = {
     questions: [],
     answers: {},
@@ -79,49 +122,7 @@ const app = {
 
         try {
             const timestamp = new Date().getTime();
-            // ==========================================
-// Big Tech Feature: AES-256 GCM Encryption via Web Crypto API
-// ==========================================
-const CryptoUtil = {
-    async deriveKey(password) {
-        const enc = new TextEncoder();
-        const keyMaterial = await window.crypto.subtle.importKey(
-            "raw", enc.encode(password), {name: "PBKDF2"}, false, ["deriveBits", "deriveKey"]
-        );
-        return window.crypto.subtle.deriveKey(
-            { name: "PBKDF2", salt: enc.encode("ipip-neo-salt-v1"), iterations: 100000, hash: "SHA-256" },
-            keyMaterial, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]
-        );
-    },
-    async encrypt(data, password) {
-        const key = await this.deriveKey(password);
-        const iv = window.crypto.getRandomValues(new Uint8Array(12));
-        const enc = new TextEncoder();
-        const ciphertext = await window.crypto.subtle.encrypt(
-            { name: "AES-GCM", iv: iv }, key, enc.encode(data)
-        );
-        return {
-            iv: Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join(''),
-            data: btoa(String.fromCharCode(...new Uint8Array(ciphertext)))
-        };
-    },
-    async decrypt(encryptedObj, password) {
-        try {
-            const key = await this.deriveKey(password);
-            const iv = new Uint8Array(encryptedObj.iv.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-            const ciphertext = Uint8Array.from(atob(encryptedObj.data), c => c.charCodeAt(0));
-            const decrypted = await window.crypto.subtle.decrypt(
-                { name: "AES-GCM", iv: iv }, key, ciphertext
-            );
-            return new TextDecoder().decode(decrypted);
-        } catch (e) {
-            console.error("Decryption failed:", e);
-            throw new Error("Decryption failed. Incorrect password or corrupted data.");
-        }
-    }
-};
-
-this.accessKey = localStorage.getItem('access_key'); // 用于加密的密钥
+            this.accessKey = localStorage.getItem('access_key'); // 用于加密的密钥
 
             const response = await fetch(`${this.scaleConfig.dataFile}?t=${timestamp}`);
             if(!response.ok) throw new Error("无法读取题库文件");
@@ -176,7 +177,10 @@ this.accessKey = localStorage.getItem('access_key'); // 用于加密的密钥
                 await this.loadFromGist();
             }
             
-            this.currentIndex = this.questions.findIndex(q => !this.answers[q.Number] && this.answers[q.Number] !== 'skip');
+            // Find first truly unanswered question (undefined = no selection at all). 
+            // 'skip' is NOT undefined, so skipped questions do not count as resume targets.
+            // CRITICALLY: must use === undefined (not !answer) because 0 is a valid PID-5 answer.
+            this.currentIndex = this.questions.findIndex(q => this.answers[q.Number] === undefined);
             if(this.currentIndex === -1) this.currentIndex = this.questions.length - 1;
 
             this.initProgressBar();
