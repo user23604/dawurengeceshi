@@ -81,7 +81,47 @@ const app = {
                     'Other':           '其他'
                 }
             };
+        } else if (scaleType === 'bdi2') {
+            return {
+                id: 'bdi2',
+                name: '贝克抑郁量表 (BDI-II)',
+                dataFile: 'data/bdi2_questions.json',
+                localKey: 'bdi2_answers',
+                gistFileName: 'bdi2_answers.json',
+                scoreMode: '0-3',
+                halfSteps: [], // No half steps for BDI-II
+                domainMap: { 'Emotional': '情绪症状', 'Cognitive': '认知症状', 'Somatic': '躯体症状' }
+            };
+        } else if (scaleType === 'bai') {
+            return {
+                id: 'bai',
+                name: '贝克焦虑量表 (BAI)',
+                dataFile: 'data/bai_questions.json',
+                localKey: 'bai_answers',
+                gistFileName: 'bai_answers.json',
+                scoreMode: '0-3',
+                halfSteps: [], // No half steps for BAI
+                domainMap: { 'Neurophysiological': '神经生理症状', 'Panic-Subjective': '恐慌-主观症状' }
+            };
+        } else if (scaleType === 'ysq') {
+            return {
+                id: 'ysq',
+                name: '杨氏图式问卷简明版 (YSQ-S3)',
+                dataFile: 'data/ysq_s3_questions.json',
+                localKey: 'ysq_answers',
+                gistFileName: 'ysq_answers.json',
+                scoreMode: '1-6',
+                halfSteps: [],
+                domainMap: {
+                    'ED': '情感剥夺', 'AB': '被抛弃', 'MA': '不信任/虐待', 'SI': '社会隔离', 'DS': '缺陷/羞耻',
+                    'FA': '失败', 'DI': '依赖/无能', 'VU': '疾病伤害脆弱性', 'EM': '纠缠/未分化', 'SB': '屈从',
+                    'SS': '自我牺牲', 'EI': '情感压抑', 'US': '苛刻标准', 'ET': '特权/宏大', 'IS': '缺乏自控',
+                    'AS': '寻求赞扬', 'NP': '消极/悲观', 'PU': '惩罚'
+                }
+            };
         }
+        
+        // Default to Big Five
         return {
             id: 'bigfive',
             name: '大五人格 (IPIP-NEO-300)',
@@ -159,18 +199,21 @@ const app = {
                 return {
                     Number: q.number || q.Number,
                     Item: q.text || q.Item,
-                    Facet: q.facet || q.Facet,
+                    Facet: q.facet || q.Facet || Domain,
                     FacetHint: q.facet_hint_zh || '',
                     Domain,
                     Sign,
-                    Anchor
+                    Anchor,
+                    options: q.options || null   // BDI-II style per-item options
                 };
             });
             
-            // Allow meta domain_map to override config if defined
+            // Allow meta to override config if defined
             if (rawData.meta && rawData.meta.domain_map) {
                 this.domainMap = rawData.meta.domain_map;
             }
+            // Store clinical interpretation thresholds for result page severity display
+            this._metaInterpretation = (rawData.meta && rawData.meta.interpretation) ? rawData.meta.interpretation : null;
             
             this.loadLocalData();
             if (this.gistConfig.id && this.gistConfig.token) {
@@ -539,21 +582,55 @@ const app = {
         document.querySelector('#domain-table tbody').innerHTML = '<tr><td colspan="3" style="text-align:center; padding: 40px; color: var(--text-muted);">正在进行大数据分析处理... (依托 Web Worker)</td></tr>';
 
         const { domainStats } = await this.calculateScores();
-        let html = "";
+        let html = '';
         
         const chartData = [];
         const chartIndicator = [];
 
+        // Adapt result table header to scale type
+        const isPersonality = (this.scaleConfig.id === 'bigfive' || this.scaleConfig.id === 'pid5' || this.scaleConfig.id === 'ysq');
+        const colHeader = isPersonality ? '人格特质 / 维度' : '症状维度';
+        document.querySelector('#domain-table thead tr').innerHTML = `<th>${colHeader}</th><th>计分题数</th><th>原始分</th>`;
+
+        let totalScore = 0;
         for (let d in domainStats) {
             if(domainStats[d].count > 0) {
                 const domainLabel = this.domainMap[d] || d;
                 html += `<tr><td><strong>${domainLabel}</strong></td><td>${domainStats[d].count}</td><td>${domainStats[d].sum}</td></tr>`;
                 // For radar chart: max score = count * maxPerItem
-                const maxPerItem = (this.scaleConfig.scoreMode === '0-3') ? 3 : 5;
+                let maxPerItem = 5;
+                if (this.scaleConfig.scoreMode === '0-3') maxPerItem = 3;
+                else if (this.scaleConfig.scoreMode === '1-6') maxPerItem = 6;
                 chartIndicator.push({ name: domainLabel, max: domainStats[d].count * maxPerItem });
                 chartData.push(domainStats[d].sum);
+                totalScore += domainStats[d].sum;
             }
         }
+
+        // Show total score + clinical severity for BAI / BDI-II
+        const interpretation = this.scaleConfig.meta_interpretation || null;
+        if (['bai', 'bdi2'].includes(this.scaleConfig.id)) {
+            // Fetch interpretation from the loaded JSON meta (stored on scaleConfig)
+            const interp = this._metaInterpretation;
+            let severityHtml = '';
+            if (interp && interp.length > 0) {
+                const level = interp.find(r => totalScore >= r.min && totalScore <= r.max);
+                if (level) {
+                    severityHtml = `<div style="margin-bottom:16px; padding:14px 20px; border-radius:10px; background:${level.color}22; border: 1px solid ${level.color}55; font-size:15px;">
+                        总分：<strong style="font-size:20px; color:${level.color}">${totalScore}</strong> &nbsp;·&nbsp; 评级：<strong style="color:${level.color}">${level.label}</strong>
+                    </div>`;
+                }
+            } else {
+                severityHtml = `<div style="margin-bottom:16px; padding:14px 20px; border-radius:10px; background:rgba(139,92,246,0.1); border:1px solid rgba(139,92,246,0.3); font-size:15px;">总分：<strong style="font-size:20px; color:#a78bfa">${totalScore}</strong></div>`;
+            }
+            const existingSev = document.getElementById('severity-block');
+            if (existingSev) existingSev.remove();
+            const sevDiv = document.createElement('div');
+            sevDiv.id = 'severity-block';
+            sevDiv.innerHTML = severityHtml;
+            document.querySelector('#domain-table').insertAdjacentElement('beforebegin', sevDiv);
+        }
+
         document.querySelector('#domain-table tbody').innerHTML = html;
         this.forceCloudSync(); 
 
@@ -572,7 +649,7 @@ const app = {
                         axisName: { color: isDarkMode ? '#fafafa' : '#18181b', fontSize: 13, fontWeight: 'bold' }
                     },
                     series: [{
-                        name: '大五人格',
+                        name: this.scaleConfig.name,
                         type: 'radar',
                         data: [{ value: chartData, name: '您的得分' }],
                         itemStyle: { color: '#8b5cf6' },
@@ -632,16 +709,46 @@ const app = {
         if (!q || !q.Item) return;
 
         const currentAnswer = this.answers[q.Number];
+        // currentAnswerLabel is stored for BDI-II duplicate-value options
+        const currentAnswerLabel = this.answers[`${q.Number}_label`];
         
-        // Build options based on scale mode
-        const isPid5 = this.scaleConfig.scoreMode === '0-3';
-        const intOptions = isPid5
-            ? [0, 1, 2, 3]
-            : [1, 2, 3, 4, 5];
         const halfOptions = this.scaleConfig.halfSteps || [];
-        const labels = isPid5
-            ? { 0: '非常不符合', 1: '有点不符合', 2: '有点符合', 3: '非常符合' }
-            : { 1: '非常不同意', 2: '不同意', 3: '一般/不确定', 4: '同意', 5: '非常同意' };
+        let optionsHtml = '';
+        if (q.options && q.options.length > 0) {
+            optionsHtml = `<div class="row-list" style="display: flex; flex-direction: column; gap: 10px;">
+                ${q.options.map((opt, idx) => {
+                    const optKey = `${opt.value}_${idx}`;
+                    const isSelected = (currentAnswer === opt.value && currentAnswerLabel === optKey);
+                    return `<div class="opt-btn ${isSelected ? 'selected' : ''}" style="text-align: left; padding: 12px 20px; border-radius: 12px; margin: 0; display: flex; align-items: center; justify-content: flex-start; height: auto;" onclick="app.selectOptionWithLabel(${q.Number}, ${opt.value}, '${optKey}', this)">
+                        <span style="font-weight: bold; margin-right: 15px; background: rgba(139, 92, 246, 0.2); color: #a78bfa; padding: 4px 10px; border-radius: 6px; min-width: 25px; text-align: center;">${opt.value}</span> 
+                        <span class="label" style="font-size: 15px; color: var(--text-primary); margin: 0; white-space: normal;">${opt.label}</span>
+                    </div>`;
+                }).join('')}
+            </div>`;
+        } else {
+            let intOptions = [];
+            let labels = {};
+            if (this.scaleConfig.scoreMode === '0-3') {
+                intOptions = [0, 1, 2, 3];
+                if (this.scaleConfig.id === 'bai') {
+                    labels = { 0: '无', 1: '轻度', 2: '中度', 3: '重度' };
+                } else {
+                    labels = { 0: '非常不符合', 1: '有点不符合', 2: '有点符合', 3: '非常符合' };
+                }
+            } else if (this.scaleConfig.scoreMode === '1-6') {
+                intOptions = [1, 2, 3, 4, 5, 6];
+                labels = { 1: '完全不符合', 2: '大部分不符合', 3: '稍微符合', 4: '中度符合', 5: '大部分符合', 6: '完美描述' };
+            } else {
+                intOptions = [1, 2, 3, 4, 5];
+                labels = { 1: '非常不同意', 2: '不同意', 3: '一般/不确定', 4: '同意', 5: '非常同意' };
+            }
+            optionsHtml = `<div class="row-int">
+                    ${intOptions.map(v => `<div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" onclick="app.selectOption(${q.Number}, ${v}, this)">${v} <span class="label">${labels[v]}</span></div>`).join('')}
+                </div>
+                ${halfOptions.length > 0 ? `<div class="row-half">
+                    ${halfOptions.map(v => `<div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" onclick="app.selectOption(${q.Number}, ${v}, this)" style="padding: 12px 0;">${v}</div>`).join('')}
+                </div>` : ''}`;
+        }
 
         const rawAnchor = (q.Anchor || '').replace(/\\n/g, '\n').replace(/•/g, '\n•'); 
         const parsedAnchor = rawAnchor.split('\n').map(line => {
@@ -677,12 +784,7 @@ const app = {
                     </button>
                     ${hasDoubt ? `<input type="text" id="doubt-input-${q.Number}" class="apple-input" placeholder="具体是哪里有疑问？" value="${doubtText}" onblur="app.saveDoubt(${q.Number}, this.value)" style="flex: 1;">` : ''}
                 </div>
-                <div class="row-int">
-                    ${intOptions.map(v => `<div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" onclick="app.selectOption(${q.Number}, ${v}, this)">${v} <span class="label">${labels[v]}</span></div>`).join('')}
-                </div>
-                ${halfOptions.length > 0 ? `<div class="row-half">
-                    ${halfOptions.map(v => `<div class="opt-btn ${currentAnswer === v ? 'selected' : ''}" onclick="app.selectOption(${q.Number}, ${v}, this)" style="padding: 12px 0;">${v}</div>`).join('')}
-                </div>` : ''}
+                ${optionsHtml}
             </div>`;
         
         const card = document.getElementById('question-card');
@@ -722,6 +824,22 @@ const app = {
         document.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('selected'));
         element.classList.add('selected');
         // NOTE: value===0 is valid for PID-5. Use !== undefined instead of truthy check.
+        this.updateProgress(); this.triggerCloudSave(); setTimeout(() => this.goNext(), 300);
+    },
+    // BDI-II specific: supports duplicate-value options (e.g. two options both valued 1)
+    selectOptionWithLabel(qNumber, value, optKey, element) {
+        const isSameSelection = (this.answers[qNumber] === value && this.answers[`${qNumber}_label`] === optKey);
+        if (isSameSelection) {
+            delete this.answers[qNumber];
+            delete this.answers[`${qNumber}_label`];
+            element.classList.remove('selected');
+            this.saveLocalData(); this.updateProgress(); this.triggerCloudSave(); this.renderQuestion(); return;
+        }
+        this.answers[qNumber] = value;
+        this.answers[`${qNumber}_label`] = optKey;
+        this.saveLocalData();
+        document.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('selected'));
+        element.classList.add('selected');
         this.updateProgress(); this.triggerCloudSave(); setTimeout(() => this.goNext(), 300);
     },
     skipQuestion() { this.answers[this.questions[this.currentIndex].Number] = 'skip'; this.saveLocalData(); this.triggerCloudSave(); this.goNext(); },

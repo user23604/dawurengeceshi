@@ -1,0 +1,183 @@
+{
+  "meta": {
+    "name": "贝克焦虑量表 (BAI)",
+    "instrument": "Beck Anxiety Inventory",
+    "version": "web-ready-v1",
+    "language": "zh-CN",
+    "total_questions": 21,
+    "scoreMode": "0-3",
+    "optionMode": "grid",
+    "halfSteps": [],
+    "instruction": "过去一周内（包含今天），以下症状困扰你的程度？",
+    "response_mode": {
+      "official": {
+        "type": "single_choice",
+        "options": [
+          {"value": 0, "label": "无"},
+          {"value": 1, "label": "轻度"},
+          {"value": 2, "label": "中度"},
+          {"value": 3, "label": "重度"}
+        ]
+      }
+    },
+    "interpretation": [
+      {"min": 0,  "max": 7,  "label": "正常范围", "color": "#4caf50"},
+      {"min": 8,  "max": 15, "label": "轻度焦虑", "color": "#ff9800"},
+      {"min": 16, "max": 25, "label": "中度焦虑", "color": "#f44336"},
+      {"min": 26, "max": 63, "label": "重度焦虑", "color": "#b71c1c"}
+    ],
+    "domain_map": {
+      "Neurophysiological": "神经生理症状",
+      "Panic-Subjective":   "恐慌-主观症状"
+    }
+  },
+  "questions": [
+    {
+      "id": "BAI_001", "number": 1,
+      "text": "麻木或刺痛感",
+      "facet": "Numbness", "facet_hint_zh": "身体麻木/刺痛",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_002", "number": 2,
+      "text": "感觉发热",
+      "facet": "Hot", "facet_hint_zh": "发热感",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_003", "number": 3,
+      "text": "腿部颤抖或无力",
+      "facet": "Wobbliness in Legs", "facet_hint_zh": "腿软/颤抖",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_004", "number": 4,
+      "text": "不能放松",
+      "facet": "Unable to Relax", "facet_hint_zh": "无法放松",
+      "domain_primary": "Panic-Subjective",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_005", "number": 5,
+      "text": "害怕发生可怕的事情",
+      "facet": "Fear of Worst", "facet_hint_zh": "害怕最坏情况",
+      "domain_primary": "Panic-Subjective",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_006", "number": 6,
+      "text": "感到头晕或目眩",
+      "facet": "Dizzy", "facet_hint_zh": "头晕/目眩",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_007", "number": 7,
+      "text": "心跳剧烈或心率加快",
+      "facet": "Heart Pounding", "facet_hint_zh": "心悸",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_008", "number": 8,
+      "text": "感到步态不稳",
+      "facet": "Unsteady", "facet_hint_zh": "站立不稳",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_009", "number": 9,
+      "text": "极度惊恐或恐惧",
+      "facet": "Terrified", "facet_hint_zh": "极度恐惧",
+      "domain_primary": "Panic-Subjective",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_010", "number": 10,
+      "text": "感到神经紧张",
+      "facet": "Nervous", "facet_hint_zh": "神经性紧张",
+      "domain_primary": "Panic-Subjective",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_011", "number": 11,
+      "text": "窒息感或透不过气",
+      "facet": "Choking", "facet_hint_zh": "呼吸受阻",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_012", "number": 12,
+      "text": "手部颤抖",
+      "facet": "Hands Trembling", "facet_hint_zh": "手抖",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_013", "number": 13,
+      "text": "身体摇晃感",
+      "facet": "Shaky", "facet_hint_zh": "全身颤抖",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_014", "number": 14,
+      "text": "害怕失去控制",
+      "facet": "Fear of Losing Control", "facet_hint_zh": "失控恐惧",
+      "domain_primary": "Panic-Subjective",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_015", "number": 15,
+      "text": "呼吸困难",
+      "facet": "Difficulty Breathing", "facet_hint_zh": "呼吸困难",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_016", "number": 16,
+      "text": "害怕即将死去",
+      "facet": "Fear of Dying", "facet_hint_zh": "濒死感",
+      "domain_primary": "Panic-Subjective",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_017", "number": 17,
+      "text": "害怕发疯",
+      "facet": "Scared", "facet_hint_zh": "害怕失常",
+      "domain_primary": "Panic-Subjective",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_018", "number": 18,
+      "text": "消化不良或腹部不适",
+      "facet": "Indigestion", "facet_hint_zh": "肠胃不适",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_019", "number": 19,
+      "text": "感到晕厥",
+      "facet": "Faint", "facet_hint_zh": "晕厥感",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_020", "number": 20,
+      "text": "面部潮红",
+      "facet": "Face Flushed", "facet_hint_zh": "脸红/潮热",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    },
+    {
+      "id": "BAI_021", "number": 21,
+      "text": "出汗（非高温引起）",
+      "facet": "Sweating", "facet_hint_zh": "非热源性出汗",
+      "domain_primary": "Neurophysiological",
+      "scoring": {"reverse": false}
+    }
+  ]
+}

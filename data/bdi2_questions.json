@@ -1,0 +1,305 @@
+{
+  "meta": {
+    "name": "贝克抑郁量表第2版 (BDI-II)",
+    "instrument": "Beck Depression Inventory - Second Edition",
+    "version": "web-ready-v1",
+    "language": "zh-CN",
+    "total_questions": 21,
+    "scoreMode": "0-3",
+    "optionMode": "list",
+    "halfSteps": [],
+    "instruction": "请仔细阅读每一组句子，选出过去两周内（包括今天）最能准确描述你感受的一项。",
+    "interpretation": [
+      {"min": 0,  "max": 13, "label": "正常范围", "color": "#4caf50"},
+      {"min": 14, "max": 19, "label": "轻度抑郁", "color": "#ff9800"},
+      {"min": 20, "max": 28, "label": "中度抑郁", "color": "#f44336"},
+      {"min": 29, "max": 63, "label": "重度抑郁", "color": "#b71c1c"}
+    ],
+    "domain_map": {
+      "Emotional":  "情绪症状",
+      "Cognitive":  "认知症状",
+      "Somatic":    "躯体症状"
+    }
+  },
+  "questions": [
+    {
+      "id": "BDI2_001", "number": 1,
+      "text": "悲伤",
+      "facet": "Sadness", "facet_hint_zh": "悲伤感",
+      "domain_primary": "Emotional",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我不觉得悲伤。"},
+        {"value": 1, "label": "我大部分时间觉得悲伤。"},
+        {"value": 2, "label": "我一直觉得悲伤。"},
+        {"value": 3, "label": "我太悲伤，已经无法忍受。"}
+      ]
+    },
+    {
+      "id": "BDI2_002", "number": 2,
+      "text": "悲观",
+      "facet": "Pessimism", "facet_hint_zh": "对未来悲观",
+      "domain_primary": "Cognitive",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我对未来不感到灰心。"},
+        {"value": 1, "label": "我对未来感到比以前灰心。"},
+        {"value": 2, "label": "我觉得未来没有什么可指望的。"},
+        {"value": 3, "label": "我觉得未来毫无希望，情况只会更糟。"}
+      ]
+    },
+    {
+      "id": "BDI2_003", "number": 3,
+      "text": "过去失败感",
+      "facet": "Past Failure", "facet_hint_zh": "历史失败感",
+      "domain_primary": "Cognitive",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我不觉得自己是个失败者。"},
+        {"value": 1, "label": "我觉得自己比一般人失败得更多。"},
+        {"value": 2, "label": "回顾过去，我看到的只有很多失败。"},
+        {"value": 3, "label": "我觉得自己是个彻底的失败者。"}
+      ]
+    },
+    {
+      "id": "BDI2_004", "number": 4,
+      "text": "失去快感",
+      "facet": "Loss of Pleasure", "facet_hint_zh": "享受能力下降",
+      "domain_primary": "Emotional",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我和以前一样能从生活中得到乐趣。"},
+        {"value": 1, "label": "我不再像以前那样享受生活。"},
+        {"value": 2, "label": "我几乎得不到任何乐趣。"},
+        {"value": 3, "label": "我对任何事情都提不起兴趣。"}
+      ]
+    },
+    {
+      "id": "BDI2_005", "number": 5,
+      "text": "内疚感",
+      "facet": "Guilty Feelings", "facet_hint_zh": "内疚",
+      "domain_primary": "Cognitive",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我不觉得特别内疚。"},
+        {"value": 1, "label": "我对很多事感到内疚。"},
+        {"value": 2, "label": "我大部分时间感到内疚。"},
+        {"value": 3, "label": "我一直都感到内疚。"}
+      ]
+    },
+    {
+      "id": "BDI2_006", "number": 6,
+      "text": "受惩罚感",
+      "facet": "Punishment Feelings", "facet_hint_zh": "被惩罚感",
+      "domain_primary": "Cognitive",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我不觉得我正在受惩罚。"},
+        {"value": 1, "label": "我觉得我可能会受到惩罚。"},
+        {"value": 2, "label": "我预感我将受到惩罚。"},
+        {"value": 3, "label": "我觉得我现在正在受惩罚。"}
+      ]
+    },
+    {
+      "id": "BDI2_007", "number": 7,
+      "text": "自我厌恶",
+      "facet": "Self-Dislike", "facet_hint_zh": "自我厌弃",
+      "domain_primary": "Cognitive",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我对自己的看法没变。"},
+        {"value": 1, "label": "我对自己失去了信心。"},
+        {"value": 2, "label": "我对自己感到失望。"},
+        {"value": 3, "label": "我讨厌自己。"}
+      ]
+    },
+    {
+      "id": "BDI2_008", "number": 8,
+      "text": "自我指责",
+      "facet": "Self-Criticalness", "facet_hint_zh": "过度自我批评",
+      "domain_primary": "Cognitive",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我不觉得我比以前更差。"},
+        {"value": 1, "label": "我比以前更容易批评自己。"},
+        {"value": 2, "label": "对于发生的所有错事，我都会责怪自己。"},
+        {"value": 3, "label": "发生任何不好的事，我都觉得是我的错。"}
+      ]
+    },
+    {
+      "id": "BDI2_009", "number": 9,
+      "text": "自杀意念",
+      "facet": "Suicidal Thoughts", "facet_hint_zh": "自伤/自杀想法",
+      "domain_primary": "Cognitive",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我没有任何自杀的念头。"},
+        {"value": 1, "label": "我有自杀的念头，但我不会去做。"},
+        {"value": 2, "label": "我希望去死。"},
+        {"value": 3, "label": "如果有机会，我就会自杀。"}
+      ]
+    },
+    {
+      "id": "BDI2_010", "number": 10,
+      "text": "哭泣",
+      "facet": "Crying", "facet_hint_zh": "哭泣频率",
+      "domain_primary": "Emotional",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我没有比以前哭得更多。"},
+        {"value": 1, "label": "我现在比以前哭得多。"},
+        {"value": 2, "label": "我现在经常为小事哭泣。"},
+        {"value": 3, "label": "我想哭，但怎么也哭不出来。"}
+      ]
+    },
+    {
+      "id": "BDI2_011", "number": 11,
+      "text": "焦躁不安",
+      "facet": "Agitation", "facet_hint_zh": "烦躁/坐立不安",
+      "domain_primary": "Emotional",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我没有更烦躁。"},
+        {"value": 1, "label": "我觉得比平时更不安。"},
+        {"value": 2, "label": "我太不安了，很难安静坐着。"},
+        {"value": 3, "label": "我极其烦躁，必须不停走动。"}
+      ]
+    },
+    {
+      "id": "BDI2_012", "number": 12,
+      "text": "失去兴趣",
+      "facet": "Loss of Interest", "facet_hint_zh": "对事物的兴趣减退",
+      "domain_primary": "Emotional",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我没有对事物失去兴趣。"},
+        {"value": 1, "label": "我的兴趣比以前少了。"},
+        {"value": 2, "label": "我失去了大部分兴趣。"},
+        {"value": 3, "label": "我对任何事都很难产生兴趣。"}
+      ]
+    },
+    {
+      "id": "BDI2_013", "number": 13,
+      "text": "犹豫不决",
+      "facet": "Indecisiveness", "facet_hint_zh": "决策困难",
+      "domain_primary": "Cognitive",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我做决定和以前一样。"},
+        {"value": 1, "label": "我现在做决定比以前困难。"},
+        {"value": 2, "label": "我做决定遇到了很大困难。"},
+        {"value": 3, "label": "我完全无法做决定。"}
+      ]
+    },
+    {
+      "id": "BDI2_014", "number": 14,
+      "text": "无价值感",
+      "facet": "Worthlessness", "facet_hint_zh": "自我无价值感",
+      "domain_primary": "Cognitive",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我不觉得自己毫无价值。"},
+        {"value": 1, "label": "我觉得自己不如以前有用。"},
+        {"value": 2, "label": "和别人相比，我觉得更没有价值。"},
+        {"value": 3, "label": "我觉得自己完全是个废物。"}
+      ]
+    },
+    {
+      "id": "BDI2_015", "number": 15,
+      "text": "精力减退",
+      "facet": "Loss of Energy", "facet_hint_zh": "能量不足",
+      "domain_primary": "Somatic",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我的精力和以前一样。"},
+        {"value": 1, "label": "我的精力比以前少了。"},
+        {"value": 2, "label": "我没有足够的精力做事。"},
+        {"value": 3, "label": "我连一点精力都没有了。"}
+      ]
+    },
+    {
+      "id": "BDI2_016", "number": 16,
+      "text": "睡眠模式改变",
+      "facet": "Changes in Sleeping Pattern", "facet_hint_zh": "睡眠变化",
+      "domain_primary": "Somatic",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "睡眠没有改变。"},
+        {"value": 1, "label": "睡眠略微变少。"},
+        {"value": 1, "label": "睡眠略微变多。"},
+        {"value": 2, "label": "大部分时间睡眠不足。"},
+        {"value": 2, "label": "睡眠明显变多。"},
+        {"value": 3, "label": "绝大部分时间睡不着，早醒。"},
+        {"value": 3, "label": "绝大部分时间都在睡觉。"}
+      ]
+    },
+    {
+      "id": "BDI2_017", "number": 17,
+      "text": "易怒",
+      "facet": "Irritability", "facet_hint_zh": "情绪易怒",
+      "domain_primary": "Somatic",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我没有更容易发脾气。"},
+        {"value": 1, "label": "我比以前更容易心烦。"},
+        {"value": 2, "label": "我现在经常感到愤怒。"},
+        {"value": 3, "label": "我一直都在生气。"}
+      ]
+    },
+    {
+      "id": "BDI2_018", "number": 18,
+      "text": "食欲改变",
+      "facet": "Changes in Appetite", "facet_hint_zh": "食欲变化",
+      "domain_primary": "Somatic",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "食欲没有改变。"},
+        {"value": 1, "label": "食欲略微变差。"},
+        {"value": 1, "label": "食欲略微增加。"},
+        {"value": 2, "label": "食欲明显变差。"},
+        {"value": 2, "label": "食欲明显增加。"},
+        {"value": 3, "label": "完全没有食欲。"},
+        {"value": 3, "label": "一直想吃东西。"}
+      ]
+    },
+    {
+      "id": "BDI2_019", "number": 19,
+      "text": "注意力困难",
+      "facet": "Difficulty Concentrating", "facet_hint_zh": "注意力集中障碍",
+      "domain_primary": "Somatic",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我能像以前一样集中注意力。"},
+        {"value": 1, "label": "我不能像平时那样集中注意力。"},
+        {"value": 2, "label": "我很难长时间集中注意力。"},
+        {"value": 3, "label": "我完全无法集中注意力。"}
+      ]
+    },
+    {
+      "id": "BDI2_020", "number": 20,
+      "text": "疲劳或倦怠",
+      "facet": "Tiredness or Fatigue", "facet_hint_zh": "慢性疲劳",
+      "domain_primary": "Somatic",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "我没有比以前更累。"},
+        {"value": 1, "label": "我比以前更容易累。"},
+        {"value": 2, "label": "我太累了，很难做日常的事情。"},
+        {"value": 3, "label": "我累得什么都做不了。"}
+      ]
+    },
+    {
+      "id": "BDI2_021", "number": 21,
+      "text": "对性失去兴趣",
+      "facet": "Loss of Interest in Sex", "facet_hint_zh": "性欲下降",
+      "domain_primary": "Somatic",
+      "scoring": {"reverse": false},
+      "options": [
+        {"value": 0, "label": "兴趣没有改变。"},
+        {"value": 1, "label": "兴趣比以前少了。"},
+        {"value": 2, "label": "非常缺乏兴趣。"},
+        {"value": 3, "label": "彻底失去了兴趣。"}
+      ]
+    }
+  ]
+}
