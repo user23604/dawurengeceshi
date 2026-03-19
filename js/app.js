@@ -6,7 +6,7 @@ const CryptoUtil = {
     async deriveKey(password) {
         const enc = new TextEncoder();
         const keyMaterial = await window.crypto.subtle.importKey(
-            "raw", enc.encode(password), {name: "PBKDF2"}, false, ["deriveBits", "deriveKey"]
+            "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveBits", "deriveKey"]
         );
         return window.crypto.subtle.deriveKey(
             { name: "PBKDF2", salt: enc.encode("ipip-neo-salt-v1"), iterations: 100000, hash: "SHA-256" },
@@ -44,23 +44,23 @@ const CryptoUtil = {
 const app = {
     questions: [],
     answers: {},
-    doubts: {}, 
+    doubts: {},
     history: [], // 🌟 新增：存放历次测试的“时光机”数组
     currentIndex: 0,
     slideDirection: '',
     scaleConfig: null,
     domainMap: {},
-    
+
     gistConfig: {
         id: localStorage.getItem('gist_id') || '',
         token: localStorage.getItem('gist_token') || ''
     },
 
-    updateTime: 0,          
-    syncCooldown: 15000,    
-    lastApiCallTime: 0,     
-    needsSync: false,       
-    syncTimer: null,        
+    updateTime: 0,
+    syncCooldown: 15000,
+    lastApiCallTime: 0,
+    needsSync: false,
+    syncTimer: null,
 
     getScaleConfig(scaleType) {
         if (scaleType === 'pid5') {
@@ -74,11 +74,11 @@ const app = {
                 halfSteps: [0.5, 1.5, 2.5],
                 domainMap: {
                     'Negative Affect': '负性情感',
-                    'Detachment':      '疏离',
-                    'Antagonism':      '对抗',
-                    'Disinhibition':   '去抑制',
-                    'Psychoticism':    '精神病性风格',
-                    'Other':           '其他'
+                    'Detachment': '疏离',
+                    'Antagonism': '对抗',
+                    'Disinhibition': '去抑制',
+                    'Psychoticism': '精神病性风格',
+                    'Other': '其他'
                 }
             };
         } else if (scaleType === 'bdi2') {
@@ -120,7 +120,7 @@ const app = {
                 }
             };
         }
-        
+
         // Default to Big Five
         return {
             id: 'bigfive',
@@ -130,7 +130,7 @@ const app = {
             gistFileName: 'ipip_answers.json',
             scoreMode: '1-5',
             halfSteps: [1.5, 2.5, 3.5, 4.5],
-            domainMap: { 'N':'神经质', 'E':'外向性', 'O':'开放性', 'A':'宜人性', 'C':'尽责性' }
+            domainMap: { 'N': '神经质', 'E': '外向性', 'O': '开放性', 'A': '宜人性', 'C': '尽责性' }
         };
     },
 
@@ -165,9 +165,9 @@ const app = {
             this.accessKey = localStorage.getItem('access_key'); // 用于加密的密钥
 
             const response = await fetch(`${this.scaleConfig.dataFile}?t=${timestamp}`);
-            if(!response.ok) throw new Error("无法读取题库文件");
+            if (!response.ok) throw new Error("无法读取题库文件");
             const rawData = await response.json();
-            
+
             // Normalize JSON data source — supports both old Big Five format and new PID-5 format
             let questionsArray = rawData.questions || rawData;
             this.questions = questionsArray.map(q => {
@@ -178,7 +178,7 @@ const app = {
 
                 // Determine reverse scoring
                 const isReverse = (q.scoring && q.scoring.reverse === true) ||
-                                  q.reverse === true || q.sign === '-' || q.Sign === '_';
+                    q.reverse === true || q.sign === '-' || q.Sign === '_';
                 const Sign = isReverse ? '_' : '+';
 
                 // Build anchor/examples text
@@ -207,26 +207,27 @@ const app = {
                     options: q.options || null   // BDI-II style per-item options
                 };
             });
-            
+
             // Allow meta to override config if defined
             if (rawData.meta && rawData.meta.domain_map) {
                 this.domainMap = rawData.meta.domain_map;
             }
             // Store clinical interpretation thresholds for result page severity display
             this._metaInterpretation = (rawData.meta && rawData.meta.interpretation) ? rawData.meta.interpretation : null;
-            
+
             this.loadLocalData();
             if (this.gistConfig.id && this.gistConfig.token) {
                 await this.loadFromGist();
             }
-            
+
             // Find first truly unanswered question (undefined = no selection at all). 
             // 'skip' is NOT undefined, so skipped questions do not count as resume targets.
             // CRITICALLY: must use === undefined (not !answer) because 0 is a valid PID-5 answer.
             this.currentIndex = this.questions.findIndex(q => this.answers[q.Number] === undefined);
-            if(this.currentIndex === -1) this.currentIndex = this.questions.length - 1;
+            if (this.currentIndex === -1) this.currentIndex = this.questions.length - 1;
 
             this.initProgressBar();
+            this.initDrawer();
             this.renderQuestion();
         } catch (error) {
             console.error("初始化错误：", error);
@@ -241,22 +242,22 @@ const app = {
             this.answers = localData.answers;
             this.doubts = localData.doubts || {};
             this.history = localData.history || []; // 读取历史记录
-            this.updateTime = localData.update_time || 0; 
+            this.updateTime = localData.update_time || 0;
         } else {
-            this.answers = localData; 
+            this.answers = localData;
             this.doubts = {};
             this.history = [];
             this.updateTime = 0;
         }
     },
-    
+
     saveLocalData() {
-        this.updateTime = Date.now(); 
-        localStorage.setItem(this.scaleConfig.localKey, JSON.stringify({ 
-            answers: this.answers, 
+        this.updateTime = Date.now();
+        localStorage.setItem(this.scaleConfig.localKey, JSON.stringify({
+            answers: this.answers,
             doubts: this.doubts,
             history: this.history, // 保存历史记录
-            update_time: this.updateTime 
+            update_time: this.updateTime
         }));
     },
 
@@ -274,7 +275,7 @@ const app = {
             this.needsSync = false;
             this.saveToGist();
         } else {
-            if(statusEl) statusEl.innerHTML = `<span style='color:var(--text-muted);'>💾 本地秒存 (冷却中)</span>`;
+            if (statusEl) statusEl.innerHTML = `<span style='color:var(--text-muted);'>💾 本地秒存 (冷却中)</span>`;
             if (!this.syncTimer) {
                 this.syncTimer = setTimeout(() => {
                     this.syncTimer = null;
@@ -287,7 +288,7 @@ const app = {
     forceCloudSync() {
         if (this.syncTimer) clearTimeout(this.syncTimer);
         this.syncTimer = null;
-        this.lastApiCallTime = 0; 
+        this.lastApiCallTime = 0;
         this.needsSync = true;
         this.attemptSync();
     },
@@ -326,39 +327,39 @@ const app = {
 
     async loadFromGist() {
         const statusEl = document.getElementById('sync-status');
-        if(statusEl) { statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 检查云端更新...</span>"; statusEl.onclick = null; }
-        
+        if (statusEl) { statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 检查云端更新...</span>"; statusEl.onclick = null; }
+
         try {
             const cleanId = this.gistConfig.id.trim();
             const cleanToken = this.gistConfig.token.trim();
             const url = `https://api.github.com/gists/${cleanId}?t=${new Date().getTime()}`;
-            
+
             const res = await this.fetchWithTimeout(url, { headers: { 'Authorization': `Bearer ${cleanToken}` } }, 10000);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            
+
             const data = await res.json();
             const GIST_FILENAME = this.scaleConfig.gistFileName;
-            
+
             if (data.files && data.files[GIST_FILENAME]) {
-                if(statusEl) statusEl.textContent = '读取云端数据解密中...';
+                if (statusEl) statusEl.textContent = '读取云端数据解密中...';
                 const file = data.files[GIST_FILENAME];
                 if (file) {
                     try {
                         const encryptedObj = JSON.parse(file.content);
                         const decryptedStr = await CryptoUtil.decrypt(encryptedObj, this.accessKey);
                         const state = JSON.parse(decryptedStr);
-                        
+
                         if (state.update_time > this.updateTime) {
                             this.importState(state);
-                            if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已拉取云端进度</span>";
-                            if(document.getElementById('question-card').innerHTML !== '') { this.updateProgress(); this.renderQuestion(); }
+                            if (statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已拉取云端进度</span>";
+                            if (document.getElementById('question-card').innerHTML !== '') { this.updateProgress(); this.renderQuestion(); }
                         } else if (this.updateTime > state.update_time) {
-                            if(statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>🚀 本地超前，推送中...</span>";
+                            if (statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>🚀 本地超前，推送中...</span>";
                             this.forceCloudSync();
                         } else {
-                            if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 保持同步</span>";
+                            if (statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 保持同步</span>";
                         }
-                    } catch(e) {
+                    } catch (e) {
                         console.error('解密失败:', e);
                         // Fallback parsing for old unencrypted base64 data to avoid breaking existing users during upgrade
                         try {
@@ -366,17 +367,17 @@ const app = {
                             const state = JSON.parse(decoded);
                             if (state.update_time > this.updateTime) {
                                 this.importState(state);
-                                if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 云端旧格式已同步</span>";
-                                if(document.getElementById('question-card').innerHTML !== '') { this.updateProgress(); this.renderQuestion(); }
+                                if (statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 云端旧格式已同步</span>";
+                                if (document.getElementById('question-card').innerHTML !== '') { this.updateProgress(); this.renderQuestion(); }
                             } else if (this.updateTime > state.update_time) {
-                                if(statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>🚀 本地超前，推送中...</span>";
+                                if (statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>🚀 本地超前，推送中...</span>";
                                 this.forceCloudSync();
                             } else {
-                                if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 保持同步</span>";
+                                if (statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 保持同步</span>";
                             }
                         } catch (e2) {
                             alert('云端数据格式错误或解密失败，请检查授权码是否正确。');
-                            if(statusEl) statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer;'>❌ 同步失败(点我)</span>";
+                            if (statusEl) statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer;'>❌ 同步失败(点我)</span>";
                             statusEl.onclick = () => alert(`🚨 拉取失败: ${e.message}\n旧格式解析失败: ${e2.message}`);
                         }
                     }
@@ -384,12 +385,12 @@ const app = {
             } else {
                 // File does not exist in Gist yet (e.g., first time doing PID-5 while Big Five file exists)
                 // We should NOT throw an error. Instead, push local to create it.
-                if(statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>☁️ 云端新建文件中...</span>";
+                if (statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>☁️ 云端新建文件中...</span>";
                 this.forceCloudSync();
             }
         } catch (e) {
             console.error("【同步拉取异常】", e);
-            if(statusEl) {
+            if (statusEl) {
                 statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer;'>❌ 同步失败(点我)</span>";
                 statusEl.onclick = () => alert(`🚨 拉取失败: ${e.message}`);
             }
@@ -399,28 +400,28 @@ const app = {
     async saveToGist() {
         if (!this.gistConfig.id || !this.gistConfig.token) return;
         const statusEl = document.getElementById('sync-status');
-        if(statusEl) { statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 正在上云...</span>"; statusEl.onclick = null; }
-        
+        if (statusEl) { statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 正在上云...</span>"; statusEl.onclick = null; }
+
         try {
             // 打包所有数据，包含 history
             const statePayload = { answers: this.answers, doubts: this.doubts, history: this.history, update_time: this.updateTime };
             const encryptedPayload = await CryptoUtil.encrypt(JSON.stringify(statePayload), this.accessKey);
-            
+
             const cleanId = this.gistConfig.id.trim();
             const cleanToken = this.gistConfig.token.trim();
-            
+
             const res = await this.fetchWithTimeout(`https://api.github.com/gists/${cleanId}`, {
                 method: 'PATCH',
                 headers: { 'Authorization': `Bearer ${cleanToken}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ files: { [this.scaleConfig.gistFileName]: { content: JSON.stringify(encryptedPayload) } } })
             }, 10000);
-            
+
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            if(statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已安全上云</span>";
-            
-        } catch (e) { 
+            if (statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已安全上云</span>";
+
+        } catch (e) {
             console.error("【同步保存异常】", e);
-            if(statusEl) {
+            if (statusEl) {
                 statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer;'>❌ 上传失败(点我)</span>";
                 statusEl.onclick = () => alert(`🚨 保存失败: ${e.message}\n已存在本地缓存中。`);
             }
@@ -431,13 +432,13 @@ const app = {
     archiveAndRestart() {
         const answeredCount = Object.keys(this.answers).length;
         if (answeredCount === 0) return alert("当前没有可保存的进度！");
-        
+
         const confirmMsg = `确定要将当前进度（已答 ${answeredCount} 题）封存到历史记录中，并重新开始全新的测试吗？\n\n（封存后，您可以在上方“历史”按钮中随时导出这份旧数据，但当前屏幕将被清空。）`;
         if (!confirm(confirmMsg)) return;
 
         // 生成时间戳格式的日期名称
         const now = new Date();
-        const dateStr = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}-${now.getDate().toString().padStart(2,'0')} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+        const dateStr = `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
         // 把当前内容塞进历史阵列
         this.history.unshift({
@@ -451,11 +452,11 @@ const app = {
         this.answers = {};
         this.doubts = {};
         this.currentIndex = 0;
-        
+
         this.saveLocalData();
         this.forceCloudSync(); // 强制云端同步这次大变更
         alert("✅ 已成功封存！即将为您加载全新空白测试...");
-        location.reload(); 
+        location.reload();
     },
 
     // --- 🌟 新增功能 2：历史记录弹窗 ---
@@ -464,7 +465,7 @@ const app = {
         if (oldModal) oldModal.remove();
 
         let listHtml = this.history.length === 0 ? '<div style="text-align:center; padding: 30px; color:var(--text-muted);">暂无历史归档记录</div>' : '';
-        
+
         this.history.forEach((h, index) => {
             const ansCount = Object.keys(h.answers).length;
             listHtml += `
@@ -474,7 +475,8 @@ const app = {
                     <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">🕒 ${h.date} | 已答 ${ansCount} 题</div>
                 </div>
                 <div style="display:flex; gap:8px;">
-                    <button onclick="app.exportExcel(${index})" style="padding:6px 12px; border:none; background:#4caf50; color:#fff; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;">📊 下载报告</button>
+                    <button onclick="app.exportExcel(${index})" style="padding:6px 12px; border:none; background:#4caf50; color:#fff; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;">📊 Excel</button>
+                    <button onclick="app.exportMarkdown(${index})" style="padding:6px 12px; border:none; background:#8b5cf6; color:#fff; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;">📝 MD</button>
                     <button onclick="app.deleteHistory(${index})" style="padding:6px 12px; border:none; background:#ef5350; color:#fff; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold;">删除</button>
                 </div>
             </div>`;
@@ -519,13 +521,13 @@ const app = {
 
         // 计算所有得分数据 (Offloaded to Web Worker)
         const { itemResults, domainStats, facetStats } = await this.calculateScoresData(targetAnswers, targetDoubts);
-        
+
         // 创建空的工作簿
         const wb = XLSX.utils.book_new();
 
         // Sheet 1: 五大维度
         const ws1_data = [["维度代码", "维度名称", "总分"]];
-        for(let d in domainStats) { ws1_data.push([d, this.domainMap[d], domainStats[d].sum]); }
+        for (let d in domainStats) { ws1_data.push([d, this.domainMap[d], domainStats[d].sum]); }
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ws1_data), "01_五大维度总分");
 
         // Sheet 2: 三十个子面
@@ -574,6 +576,92 @@ const app = {
         });
     },
 
+    // --- 🌟 导出 Markdown 报告 ---
+    async exportMarkdown(historyIndex = null) {
+        const targetAnswers = historyIndex !== null ? this.history[historyIndex].answers : this.answers;
+        const targetDoubts = historyIndex !== null ? this.history[historyIndex].doubts : this.doubts;
+        const targetDate = historyIndex !== null ? this.history[historyIndex].date.replace(/[: ]/g, "_") : "当前最新";
+        const displayDate = historyIndex !== null ? this.history[historyIndex].date : new Date().toLocaleString();
+
+        if (Object.keys(targetAnswers).length === 0) return alert("该记录中没有答题数据！");
+
+        const btn = event?.currentTarget;
+        const originalText = btn ? btn.innerHTML : '';
+        if (btn) btn.innerHTML = '⏳ 生成中...';
+
+        try {
+            const { itemResults, domainStats, facetStats } = await this.calculateScoresData(targetAnswers, targetDoubts);
+            
+            let md = `# ${this.scaleConfig.name} 测试报告\n\n`;
+            md += `**生成时间**：${displayDate}\n\n`;
+            md += `---\n\n`;
+
+            // 1. 各维度得分
+            md += `## 📊 核心维度得分\n\n`;
+            md += `| 维度代码 | 维度名称 | 总分 |\n`;
+            md += `| :--- | :--- | :--- |\n`;
+            let totalScore = 0;
+            for (let d in domainStats) {
+                if (domainStats[d].count > 0) {
+                    const domainLabel = this.domainMap[d] || d;
+                    md += `| **${d}** | ${domainLabel} | **${domainStats[d].sum}** |\n`;
+                    totalScore += domainStats[d].sum;
+                }
+            }
+            md += `\n`;
+
+            // 评级解读 (针对 BAI / BDI-II)
+            if (['bai', 'bdi2'].includes(this.scaleConfig.id) && this._metaInterpretation) {
+                const level = this._metaInterpretation.find(r => totalScore >= r.min && totalScore <= r.max);
+                if (level) {
+                    md += `> **量表总分**：\`${totalScore}\`，临床评级：**${level.label}**\n\n`;
+                }
+            }
+
+            // 2. 子面得分
+            if (Object.keys(facetStats).length > 0) {
+                md += `## 📑 子面详细得分\n\n`;
+                md += `| 子面代码 | 总分 |\n`;
+                md += `| :--- | :--- |\n`;
+                const sortedFacets = Object.keys(facetStats).sort();
+                sortedFacets.forEach(f => {
+                    md += `| ${f} | ${facetStats[f].sum} |\n`;
+                });
+                md += `\n`;
+            }
+
+            // 3. 疑问汇总
+            const doubts = itemResults.filter(r => r.Doubt);
+            if (doubts.length > 0) {
+                md += `## ❓ 测试过程中的疑问\n\n`;
+                doubts.forEach(r => {
+                    md += `- **第 ${r.Number} 题** (${r.Facet})：*${r.Item}*\n`;
+                    md += `  - 📝 **用户备注**：${r.Doubt}\n`;
+                    md += `  - 原始选项：${r.Raw}\n`;
+                });
+                md += `\n`;
+            }
+
+            md += `---\n\n`;
+            md += `*本报告由系统自动生成，仅供参考。*\n`;
+
+            // Trigger Download
+            const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${this.scaleConfig.name}_评估报告_${targetDate}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+        } catch (e) {
+            console.error("Markdown 导出失败:", e);
+            alert("导出失败，请重试！");
+        } finally {
+            if (btn) btn.innerHTML = originalText;
+        }
+    },
+
     // 供结果页展示用的简易计算器
     async calculateScores() { return await this.calculateScoresData(this.answers, this.doubts); },
     async showResults() {
@@ -583,7 +671,7 @@ const app = {
 
         const { domainStats } = await this.calculateScores();
         let html = '';
-        
+
         const chartData = [];
         const chartIndicator = [];
 
@@ -594,7 +682,7 @@ const app = {
 
         let totalScore = 0;
         for (let d in domainStats) {
-            if(domainStats[d].count > 0) {
+            if (domainStats[d].count > 0) {
                 const domainLabel = this.domainMap[d] || d;
                 html += `<tr><td><strong>${domainLabel}</strong></td><td>${domainStats[d].count}</td><td>${domainStats[d].sum}</td></tr>`;
                 // For radar chart: max score = count * maxPerItem
@@ -632,7 +720,7 @@ const app = {
         }
 
         document.querySelector('#domain-table tbody').innerHTML = html;
-        this.forceCloudSync(); 
+        this.forceCloudSync();
 
         // Render ECharts Radar Chart
         setTimeout(() => {
@@ -665,8 +753,8 @@ const app = {
     // --- 交互及杂项代码维持原样 ---
     initSwipeGesture() {
         let touchstartX = 0; let touchstartY = 0;
-        const threshold = 40; 
-        document.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; touchstartY = e.changedTouches[0].screenY; }, {passive: true});
+        const threshold = 40;
+        document.addEventListener('touchstart', e => { touchstartX = e.changedTouches[0].screenX; touchstartY = e.changedTouches[0].screenY; }, { passive: true });
         document.addEventListener('touchend', e => {
             const touchendX = e.changedTouches[0].screenX;
             const touchendY = e.changedTouches[0].screenY;
@@ -677,7 +765,7 @@ const app = {
                 }
                 if (touchendX - touchstartX > threshold) this.goPrev();
             }
-        }, {passive: true});
+        }, { passive: true });
     },
     setupGist() {
         let oldModal = document.getElementById('gist-modal');
@@ -697,9 +785,90 @@ const app = {
         </div>`;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
     },
+    
+    // --- 🌟 侧边抽屉测试切换逻辑 ---
+    initDrawer() {
+        // 设置 Header 的当前测试名称
+        const testNameEl = document.getElementById('header-test-name');
+        if (testNameEl) testNameEl.innerText = this.scaleConfig.name;
+
+        const scales = [
+            { id: 'bigfive', name: '大五人格 (IPIP-NEO-300)', localKey: 'ipip_answers', color: 'rgba(139, 92, 246, 0.1)', iconColor: '#8b5cf6', icon: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>' },
+            { id: 'pid5', name: 'PID-5 人格测验', localKey: 'pid5_answers', color: 'rgba(239, 68, 68, 0.1)', iconColor: '#ef4444', icon: '<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>' },
+            { id: 'bdi2', name: '贝克抑郁量表 (BDI-II)', localKey: 'bdi2_answers', color: 'rgba(56, 189, 248, 0.1)', iconColor: '#38bdf8', icon: '<circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line>' },
+            { id: 'bai', name: '贝克焦虑量表 (BAI)', localKey: 'bai_answers', color: 'rgba(245, 158, 11, 0.1)', iconColor: '#f59e0b', icon: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>' },
+            { id: 'ysq', name: '杨氏图式 (YSQ-S3)', localKey: 'ysq_answers', color: 'rgba(16, 185, 129, 0.1)', iconColor: '#10b981', icon: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>' }
+        ];
+
+        const listContainer = document.getElementById('drawer-scale-list');
+        if (!listContainer) return;
+        
+        let html = '';
+        scales.forEach(s => {
+            const isActive = this.scaleConfig.id === s.id;
+            
+            // 读取其他测试的进度
+            let progText = '';
+            if (isActive) {
+                const answered = Object.keys(this.answers).filter(k => this.answers[k] !== 'skip' && !k.endsWith('_label')).length;
+                progText = answered > 0 ? `<span class="drawer-item-badge">已答 ${answered}题</span>` : '';
+            } else {
+                try {
+                    const loc = JSON.parse(localStorage.getItem(s.localKey));
+                    if (loc && loc.answers) {
+                        const ansArr = Object.keys(loc.answers).filter(k => loc.answers[k] !== 'skip' && !k.endsWith('_label'));
+                        if (ansArr.length > 0) progText = `<span class="drawer-item-badge" style="background:#e4e4e7; color:#52525b;">已答 ${ansArr.length}题</span>`;
+                    }
+                } catch(e) {}
+            }
+
+            html += `
+            <button class="drawer-item ${isActive ? 'active' : ''}" onclick="app.switchTest('${s.id}')">
+                <div class="drawer-item-icon" style="background:${isActive ? s.color : 'rgba(0,0,0,0.05)'}; color:${isActive ? s.iconColor : 'var(--text-muted)'};">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        ${s.icon}
+                    </svg>
+                </div>
+                <div class="drawer-item-info">
+                    <span class="drawer-item-name">${s.name}</span>
+                </div>
+                ${progText}
+            </button>`;
+        });
+        listContainer.innerHTML = html;
+    },
+
+    openDrawer() {
+        document.getElementById('test-drawer').classList.add('open');
+        document.getElementById('drawer-overlay').classList.add('open');
+    },
+
+    closeDrawer() {
+        document.getElementById('test-drawer').classList.remove('open');
+        document.getElementById('drawer-overlay').classList.remove('open');
+    },
+
+    switchTest(targetScaleId) {
+        if (targetScaleId === this.scaleConfig.id) {
+            this.closeDrawer();
+            return;
+        }
+        
+        // 自动保存当前进度
+        this.saveLocalData();
+        
+        // 如果有云端配置，强制推送一次同步
+        if (this.gistConfig.id && this.gistConfig.token) {
+            this.forceCloudSync();
+        }
+
+        // 切换页面
+        window.location.href = `test.html?scale=${targetScaleId}&key=${localStorage.getItem('access_key')}`;
+    },
+
     initProgressBar() {
         let html = '';
-        for(let i = 0; i < this.questions.length; i++) html += `<div class="prog-seg" id="seg-${this.questions[i].Number}"></div>`;
+        for (let i = 0; i < this.questions.length; i++) html += `<div class="prog-seg" id="seg-${this.questions[i].Number}"></div>`;
         document.getElementById('progress-bar').innerHTML = html;
     },
     renderQuestion() {
@@ -711,19 +880,19 @@ const app = {
         const currentAnswer = this.answers[q.Number];
         // currentAnswerLabel is stored for BDI-II duplicate-value options
         const currentAnswerLabel = this.answers[`${q.Number}_label`];
-        
+
         const halfOptions = this.scaleConfig.halfSteps || [];
         let optionsHtml = '';
         if (q.options && q.options.length > 0) {
-            optionsHtml = `<div class="row-list" style="display: flex; flex-direction: column; gap: 10px;">
+            optionsHtml = `<div class="row-list" style="display: flex; flex-direction: column; gap: 8px;">
                 ${q.options.map((opt, idx) => {
-                    const optKey = `${opt.value}_${idx}`;
-                    const isSelected = (currentAnswer === opt.value && currentAnswerLabel === optKey);
-                    return `<div class="opt-btn ${isSelected ? 'selected' : ''}" style="text-align: left; padding: 12px 20px; border-radius: 12px; margin: 0; display: flex; align-items: center; justify-content: flex-start; height: auto;" onclick="app.selectOptionWithLabel(${q.Number}, ${opt.value}, '${optKey}', this)">
+                const optKey = `${opt.value}_${idx}`;
+                const isSelected = (currentAnswer === opt.value && currentAnswerLabel === optKey);
+                return `<div class="opt-btn ${isSelected ? 'selected' : ''}" style="text-align: left; padding: 10px 16px; border-radius: 10px; margin: 0; display: flex; flex-direction: row; align-items: center; justify-content: flex-start; height: auto;" onclick="app.selectOptionWithLabel(${q.Number}, ${opt.value}, '${optKey}', this)">
                         <span style="font-weight: bold; margin-right: 15px; background: rgba(139, 92, 246, 0.2); color: #a78bfa; padding: 4px 10px; border-radius: 6px; min-width: 25px; text-align: center;">${opt.value}</span> 
                         <span class="label" style="font-size: 15px; color: var(--text-primary); margin: 0; white-space: normal;">${opt.label}</span>
                     </div>`;
-                }).join('')}
+            }).join('')}
             </div>`;
         } else {
             let intOptions = [];
@@ -750,11 +919,11 @@ const app = {
                 </div>` : ''}`;
         }
 
-        const rawAnchor = (q.Anchor || '').replace(/\\n/g, '\n').replace(/•/g, '\n•'); 
+        const rawAnchor = (q.Anchor || '').replace(/\\n/g, '\n').replace(/•/g, '\n•');
         const parsedAnchor = rawAnchor.split('\n').map(line => {
             line = line.trim();
-            if(!line) return '';
-            if(line.startsWith('•')) {
+            if (!line) return '';
+            if (line.startsWith('•')) {
                 return `<div style="display: flex; align-items: flex-start; margin-bottom: 12px;">
                             <span style="color: #8c9eff; margin-right: 12px; font-weight: bold; font-size: 18px; line-height: 1.6;">•</span>
                             <span style="flex: 1; line-height: 1.6; color: var(--text-main); text-align: justify;">${line.substring(1).trim()}</span>
@@ -777,7 +946,7 @@ const app = {
             <div class="q-title">${q.Item}</div>
             <div class="q-anchor">${parsedAnchor}</div>
             <div class="options-area">
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
                     <button class="doubt-toggle ${hasDoubt ? 'active' : ''}" onclick="app.toggleDoubt(${q.Number})">
                         <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                         ${hasDoubt ? '取消疑问' : '添加疑问'}
@@ -786,15 +955,15 @@ const app = {
                 </div>
                 ${optionsHtml}
             </div>`;
-        
+
         const card = document.getElementById('question-card');
         card.innerHTML = html;
         card.classList.remove('slide-in-right', 'slide-in-left', 'fade-in');
-        void card.offsetWidth; 
-        if (this.slideDirection === 'left') card.classList.add('slide-in-right'); 
-        else if (this.slideDirection === 'right') card.classList.add('slide-in-left'); 
-        else card.classList.add('fade-in'); 
-        this.slideDirection = ''; 
+        void card.offsetWidth;
+        if (this.slideDirection === 'left') card.classList.add('slide-in-right');
+        else if (this.slideDirection === 'right') card.classList.add('slide-in-left');
+        else card.classList.add('fade-in');
+        this.slideDirection = '';
 
         document.getElementById('prev-btn').style.visibility = (this.currentIndex === 0) ? 'hidden' : 'visible';
         // NOTE: must use !== undefined and !== 'skip' to correctly handle answer=0 for PID-5 scale
@@ -808,8 +977,8 @@ const app = {
         this.updateProgress();
     },
     toggleDoubt(qNumber) {
-        if (this.doubts[qNumber] !== undefined) delete this.doubts[qNumber]; else this.doubts[qNumber] = ""; 
-        this.saveLocalData(); this.triggerCloudSave(); this.renderQuestion(); 
+        if (this.doubts[qNumber] !== undefined) delete this.doubts[qNumber]; else this.doubts[qNumber] = "";
+        this.saveLocalData(); this.triggerCloudSave(); this.renderQuestion();
         if (this.doubts[qNumber] !== undefined) setTimeout(() => document.getElementById(`doubt-input-${qNumber}`).focus(), 50);
     },
     saveDoubt(qNumber, text) {
@@ -843,15 +1012,15 @@ const app = {
         this.updateProgress(); this.triggerCloudSave(); setTimeout(() => this.goNext(), 300);
     },
     skipQuestion() { this.answers[this.questions[this.currentIndex].Number] = 'skip'; this.saveLocalData(); this.triggerCloudSave(); this.goNext(); },
-    goPrev() { if(this.currentIndex > 0) { this.currentIndex--; this.slideDirection = 'right'; this.renderQuestion(); } },
-    goNext() { this.currentIndex++; this.slideDirection = 'left'; if(this.currentIndex >= this.questions.length) this.showResults(); else this.renderQuestion(); },
+    goPrev() { if (this.currentIndex > 0) { this.currentIndex--; this.slideDirection = 'right'; this.renderQuestion(); } },
+    goNext() { this.currentIndex++; this.slideDirection = 'left'; if (this.currentIndex >= this.questions.length) this.showResults(); else this.renderQuestion(); },
     updateProgress() {
         let answeredCount = 0;
         this.questions.forEach(q => {
             const seg = document.getElementById(`seg-${q.Number}`);
-            if(!seg) return;
+            if (!seg) return;
             const ans = this.answers[q.Number];
-            seg.className = 'prog-seg'; 
+            seg.className = 'prog-seg';
             if (ans === 'skip') seg.classList.add('skip');
             else if (ans !== undefined) { seg.classList.add('done'); answeredCount++; }
         });
@@ -876,8 +1045,8 @@ const app = {
             } else {
                 this.answers = content; this.doubts = {}; this.updateTime = Date.now();
             }
-            this.saveLocalData(); this.forceCloudSync(); 
-            alert("✅ 导入成功！正在刷新页面..."); location.reload(); 
+            this.saveLocalData(); this.forceCloudSync();
+            alert("✅ 导入成功！正在刷新页面..."); location.reload();
         } catch (e) { alert("❌ 损坏的进度码，无法识别。"); }
     }
 };
