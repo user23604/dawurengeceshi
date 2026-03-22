@@ -761,7 +761,7 @@ const app = {
             if (Math.abs(touchendX - touchstartX) > Math.abs(touchendY - touchstartY)) {
                 if (touchstartX - touchendX > threshold) {
                     const ans = this.answers[this.questions[this.currentIndex].Number];
-                    if (ans && ans !== 'skip') this.goNext(); else this.skipQuestion();
+                    if (ans !== undefined && ans !== 'skip') this.goNext(); else this.skipQuestion();
                 }
                 if (touchendX - touchstartX > threshold) this.goPrev();
             }
