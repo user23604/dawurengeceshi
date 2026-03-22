@@ -43,7 +43,7 @@ body { display: flex; flex-direction: column; padding-top: 60px; box-sizing: bor
 .progress-container { display: flex; width: 100%; height: 4px; overflow: hidden; background: var(--border-color); gap: 0;}
 .prog-seg { flex: 1; background: transparent; transition: background 0.2s ease; }
 .prog-seg.done { background: var(--purple); }
-.prog-seg.skip { background: var(--text-muted); }
+.prog-seg.skip { background: #f59e0b; }
 
 /* Main Container */
 .container { flex: 1; display: flex; flex-direction: column; max-width: 800px; margin: 0 auto; width: 100%; padding: 12px 20px; box-sizing: border-box; min-height: 0;}
@@ -92,7 +92,7 @@ body { display: flex; flex-direction: column; padding-top: 60px; box-sizing: bor
 
 /* Mobile Optimizations */
 @media (max-width: 600px) {
-    body { padding-top: 60px; }
+    body { padding-top: 95px; }
     .header { padding: 10px 15px; }
     .container { padding: 15px 15px; }
     .q-title { font-size: 24px; margin-bottom: 20px;}

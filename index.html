@@ -176,6 +176,33 @@
             font-weight: 600; cursor: pointer; transition: background 0.3s;
         }
         #pwd-screen .btn-enter:hover { background: var(--accent-hover); }
+        .card-badge-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            align-items: flex-end;
+            pointer-events: none;
+        }
+        .card-badge {
+            background: rgba(139, 92, 246, 0.15);
+            color: var(--accent);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .card-badge.history {
+            background: rgba(74, 222, 128, 0.15);
+            color: #4ade80;
+        }
     </style>
 </head>
 <body>
@@ -327,8 +354,62 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', checkAccess);
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAccess();
+            loadCardProgress();
+        });
         document.getElementById('pwd')?.addEventListener('keydown', function(e){ if(e.key==='Enter') tryEnter(); });
+
+        function loadCardProgress() {
+            const scaleKeys = {
+                'bigfive': 'ipip_answers',
+                'pid5': 'pid5_answers',
+                'bdi2': 'bdi2_answers',
+                'bai': 'bai_answers',
+                'ysq': 'ysq_answers'
+            };
+            
+            document.querySelectorAll('.card').forEach(card => {
+                const href = card.getAttribute('href');
+                if (!href || !href.includes('scale=')) return;
+                
+                const urlParams = new URLSearchParams(href.split('?')[1]);
+                const scale = urlParams.get('scale');
+                const localKey = scaleKeys[scale];
+                
+                if (localKey) {
+                    try {
+                        const localData = JSON.parse(localStorage.getItem(localKey));
+                        if (!localData) return;
+                        
+                        let answeredCount = 0;
+                        let historyCount = 0;
+                        
+                        if (localData.answers) {
+                            answeredCount = Object.keys(localData.answers).filter(k => localData.answers[k] !== 'skip' && !k.endsWith('_label')).length;
+                            historyCount = localData.history ? localData.history.length : 0;
+                        } else {
+                            // Old format fallback
+                            answeredCount = Object.keys(localData).filter(k => localData[k] !== 'skip' && !k.endsWith('_label')).length;
+                        }
+                        
+                        if (answeredCount > 0 || historyCount > 0) {
+                            const badgeContainer = document.createElement('div');
+                            badgeContainer.className = 'card-badge-container';
+                            
+                            if (historyCount > 0) {
+                                badgeContainer.innerHTML += `<div class="card-badge history"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> 历史 ${historyCount} 次</div>`;
+                            }
+                            if (answeredCount > 0) {
+                                badgeContainer.innerHTML += `<div class="card-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> 进度 ${answeredCount} 题</div>`;
+                            }
+                            
+                            card.appendChild(badgeContainer);
+                        }
+                    } catch(e) { console.error('Error loading progress for', scale, e); }
+                }
+            });
+        }
 
         function submitFeedback() {
             const val = document.getElementById('feedback-input').value.trim();
