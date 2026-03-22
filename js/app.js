@@ -803,7 +803,17 @@ const app = {
         const listContainer = document.getElementById('drawer-scale-list');
         if (!listContainer) return;
         
-        let html = '';
+        let html = `
+        <button class="drawer-item" onclick="app.goHome()" style="border-bottom: 1px solid var(--border-color); margin-bottom: 8px; padding-bottom: 16px;">
+            <div class="drawer-item-icon" style="background:var(--bg-secondary); color:var(--text-main);">
+                <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            </div>
+            <div class="drawer-item-info">
+                <span class="drawer-item-name" style="font-size: 15px;">返回主页</span>
+                <span class="drawer-item-desc">选择其他量表或查看总体记录</span>
+            </div>
+        </button>`;
+
         scales.forEach(s => {
             const isActive = this.scaleConfig.id === s.id;
             
@@ -863,7 +873,15 @@ const app = {
         }
 
         // 切换页面
-        window.location.href = `test.html?scale=${targetScaleId}&key=${localStorage.getItem('access_key')}`;
+        window.location.href = `test.html?scale=${targetScaleId}&key=${localStorage.getItem('access_key') || ''}`;
+    },
+
+    goHome() {
+        this.saveLocalData();
+        if (this.gistConfig.id && this.gistConfig.token) {
+            this.forceCloudSync();
+        }
+        window.location.href = `index.html?key=${localStorage.getItem('access_key') || ''}`;
     },
 
     initProgressBar() {
