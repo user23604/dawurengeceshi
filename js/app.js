@@ -136,33 +136,21 @@ const app = {
 
     async init() {
         const urlParams = new URLSearchParams(window.location.search);
-        const keyFromUrl = urlParams.get('key');
-        const CORRECT_KEY = '11115555';
-
         const scaleType = urlParams.get('scale') || 'bigfive';
         this.scaleConfig = this.getScaleConfig(scaleType);
         this.domainMap = this.scaleConfig.domainMap;
         document.title = this.scaleConfig.name;
 
-        if (keyFromUrl === CORRECT_KEY) localStorage.setItem('access_key', keyFromUrl);
-
-        if (localStorage.getItem('access_key') !== CORRECT_KEY) {
-            document.body.innerHTML = `
-                <div style="text-align:center; margin-top:100px; font-family:sans-serif; padding: 20px;">
-                    <h2>🔒 受保护的内容</h2>
-                    <p style="color:var(--text-muted); margin-bottom:20px;">请输入暗号进入测试：</p>
-                    <input type="password" id="pwd" style="padding:12px; width:80%; max-width:200px; border-radius:5px; border:1px solid #ccc; font-size:16px;">
-                    <br><br>
-                    <button onclick="const k=document.getElementById('pwd').value; if(k==='${CORRECT_KEY}'){localStorage.setItem('access_key',k); location.reload();}else{alert('密码错误');}" style="padding:12px 30px; cursor:pointer; background:#2196f3; color:#fff; border:none; border-radius:5px; font-size:16px;">进入</button>
-                </div>`;
+        this.accessKey = localStorage.getItem('access_key');
+        if (!this.accessKey) {
+            window.location.href = 'index.html';
             return;
         }
-
+        
         this.initSwipeGesture();
 
         try {
             const timestamp = new Date().getTime();
-            this.accessKey = localStorage.getItem('access_key') || 'guest';
             
             // Scope local data by user key for multi-user isolation
             
