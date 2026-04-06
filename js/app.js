@@ -162,7 +162,10 @@ const app = {
 
         try {
             const timestamp = new Date().getTime();
-            this.accessKey = localStorage.getItem('access_key'); // 用于加密的密钥
+            this.accessKey = localStorage.getItem('access_key') || 'guest';
+            
+            // Scope local data by user key for multi-user isolation
+            
 
             const response = await fetch(`${this.scaleConfig.dataFile}?t=${timestamp}`);
             if (!response.ok) throw new Error("无法读取题库文件");
@@ -215,10 +218,7 @@ const app = {
             // Store clinical interpretation thresholds for result page severity display
             this._metaInterpretation = (rawData.meta && rawData.meta.interpretation) ? rawData.meta.interpretation : null;
 
-            this.loadLocalData();
-            if (this.gistConfig.id && this.gistConfig.token) {
-                await this.loadFromGist();
-            }
+            await this.loadSupabaseData();
 
             // Find first truly unanswered question (undefined = no selection at all). 
             // 'skip' is NOT undefined, so skipped questions do not count as resume targets.
@@ -235,30 +235,37 @@ const app = {
         }
     },
 
-    // --- 数据持久化层（加入了 history） ---
-    loadLocalData() {
-        const localData = JSON.parse(localStorage.getItem(this.scaleConfig.localKey)) || {};
-        if (localData.answers !== undefined) {
-            this.answers = localData.answers;
-            this.doubts = localData.doubts || {};
-            this.history = localData.history || []; // 读取历史记录
-            this.updateTime = localData.update_time || 0;
-        } else {
-            this.answers = localData;
-            this.doubts = {};
-            this.history = [];
-            this.updateTime = 0;
+    // --- 最新 Supabase 数据持久化层 ---
+    async loadSupabaseData() {
+        if (!window.supabase) { console.error("Supabase not initialized"); return; }
+        
+        const statusEl = document.getElementById('sync-status');
+        if (statusEl) statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 拉取云端数据...</span>";
+        
+        try {
+            const { data, error } = await supabase.from('user_progress').select('*').eq('key', this.accessKey).eq('scale_id', this.scaleConfig.id).single();
+            if (data) {
+                this.answers = data.answers || {};
+                this.doubts = data.doubts || {};
+                this.history = data.history || [];
+                // this.updateTime = data.update_time || 0;
+            } else {
+                this.answers = {};
+                this.doubts = {};
+                this.history = [];
+            }
+            if (statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已同步云端进度</span>";
+        } catch (err) {
+            console.error("加载云端数据失败", err);
+            if (statusEl) statusEl.innerHTML = "<span style='color:#d32f2f;'>❌ 获取云端数据失败</span>";
+            this.answers = {}; this.doubts = {}; this.history = [];
         }
     },
 
-    saveLocalData() {
+    saveSupabaseData() {
+        if (!window.supabase) return;
         this.updateTime = Date.now();
-        localStorage.setItem(this.scaleConfig.localKey, JSON.stringify({
-            answers: this.answers,
-            doubts: this.doubts,
-            history: this.history, // 保存历史记录
-            update_time: this.updateTime
-        }));
+        this.triggerCloudSave();
     },
 
     // --- 同步引擎 ---
@@ -273,9 +280,9 @@ const app = {
         if (timeSinceLastCall >= this.syncCooldown) {
             this.lastApiCallTime = now;
             this.needsSync = false;
-            this.saveToGist();
+            this.doActualCloudSave();
         } else {
-            if (statusEl) statusEl.innerHTML = `<span style='color:var(--text-muted);'>💾 本地秒存 (冷却中)</span>`;
+            if (statusEl) statusEl.innerHTML = `<span style='color:var(--text-muted);'>💾 排队上云 (冷却中)</span>`;
             if (!this.syncTimer) {
                 this.syncTimer = setTimeout(() => {
                     this.syncTimer = null;
@@ -292,141 +299,29 @@ const app = {
         this.needsSync = true;
         this.attemptSync();
     },
-
-    async fetchWithTimeout(url, options, timeout = 10000) {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), timeout);
-        try {
-            const response = await fetch(url, { ...options, signal: controller.signal });
-            clearTimeout(id);
-            return response;
-        } catch (error) {
-            clearTimeout(id);
-            throw error;
-        }
-    },
-
-    // Helper to export current state for Gist
-    exportState() {
-        return {
-            answers: this.answers,
-            doubts: this.doubts,
-            history: this.history,
-            update_time: this.updateTime
-        };
-    },
-
-    // Helper to import state from Gist
-    importState(state) {
-        this.answers = state.answers !== undefined ? state.answers : {};
-        this.doubts = state.doubts || {};
-        this.history = state.history || [];
-        this.updateTime = state.update_time || 0;
-        localStorage.setItem(this.scaleConfig.localKey, JSON.stringify({ answers: this.answers, doubts: this.doubts, history: this.history, update_time: this.updateTime }));
-    },
-
-    async loadFromGist() {
+    
+    async doActualCloudSave() {
         const statusEl = document.getElementById('sync-status');
-        if (statusEl) { statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 检查云端更新...</span>"; statusEl.onclick = null; }
-
+        if (statusEl) statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 正在上云...</span>";
+        
         try {
-            const cleanId = this.gistConfig.id.trim();
-            const cleanToken = this.gistConfig.token.trim();
-            const url = `https://api.github.com/gists/${cleanId}?t=${new Date().getTime()}`;
-
-            const res = await this.fetchWithTimeout(url, { headers: { 'Authorization': `Bearer ${cleanToken}` } }, 10000);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-            const data = await res.json();
-            const GIST_FILENAME = this.scaleConfig.gistFileName;
-
-            if (data.files && data.files[GIST_FILENAME]) {
-                if (statusEl) statusEl.textContent = '读取云端数据解密中...';
-                const file = data.files[GIST_FILENAME];
-                if (file) {
-                    try {
-                        const encryptedObj = JSON.parse(file.content);
-                        const decryptedStr = await CryptoUtil.decrypt(encryptedObj, this.accessKey);
-                        const state = JSON.parse(decryptedStr);
-
-                        if (state.update_time > this.updateTime) {
-                            this.importState(state);
-                            if (statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已拉取云端进度</span>";
-                            if (document.getElementById('question-card').innerHTML !== '') { this.updateProgress(); this.renderQuestion(); }
-                        } else if (this.updateTime > state.update_time) {
-                            if (statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>🚀 本地超前，推送中...</span>";
-                            this.forceCloudSync();
-                        } else {
-                            if (statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 保持同步</span>";
-                        }
-                    } catch (e) {
-                        console.error('解密失败:', e);
-                        // Fallback parsing for old unencrypted base64 data to avoid breaking existing users during upgrade
-                        try {
-                            const decoded = decodeURIComponent(atob(file.content));
-                            const state = JSON.parse(decoded);
-                            if (state.update_time > this.updateTime) {
-                                this.importState(state);
-                                if (statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 云端旧格式已同步</span>";
-                                if (document.getElementById('question-card').innerHTML !== '') { this.updateProgress(); this.renderQuestion(); }
-                            } else if (this.updateTime > state.update_time) {
-                                if (statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>🚀 本地超前，推送中...</span>";
-                                this.forceCloudSync();
-                            } else {
-                                if (statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 保持同步</span>";
-                            }
-                        } catch (e2) {
-                            alert('云端数据格式错误或解密失败，请检查授权码是否正确。');
-                            if (statusEl) statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer;'>❌ 同步失败(点我)</span>";
-                            statusEl.onclick = () => alert(`🚨 拉取失败: ${e.message}\n旧格式解析失败: ${e2.message}`);
-                        }
-                    }
-                }
-            } else {
-                // File does not exist in Gist yet (e.g., first time doing PID-5 while Big Five file exists)
-                // We should NOT throw an error. Instead, push local to create it.
-                if (statusEl) statusEl.innerHTML = "<span style='color:#2196f3;'>☁️ 云端新建文件中...</span>";
-                this.forceCloudSync();
-            }
-        } catch (e) {
-            console.error("【同步拉取异常】", e);
-            if (statusEl) {
-                statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer;'>❌ 同步失败(点我)</span>";
-                statusEl.onclick = () => alert(`🚨 拉取失败: ${e.message}`);
-            }
-        }
-    },
-
-    async saveToGist() {
-        if (!this.gistConfig.id || !this.gistConfig.token) return;
-        const statusEl = document.getElementById('sync-status');
-        if (statusEl) { statusEl.innerHTML = "<span style='color:#f57c00;'>⏳ 正在上云...</span>"; statusEl.onclick = null; }
-
-        try {
-            // 打包所有数据，包含 history
-            const statePayload = { answers: this.answers, doubts: this.doubts, history: this.history, update_time: this.updateTime };
-            const encryptedPayload = await CryptoUtil.encrypt(JSON.stringify(statePayload), this.accessKey);
-
-            const cleanId = this.gistConfig.id.trim();
-            const cleanToken = this.gistConfig.token.trim();
-
-            const res = await this.fetchWithTimeout(`https://api.github.com/gists/${cleanId}`, {
-                method: 'PATCH',
-                headers: { 'Authorization': `Bearer ${cleanToken}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ files: { [this.scaleConfig.gistFileName]: { content: JSON.stringify(encryptedPayload) } } })
-            }, 10000);
-
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            await supabase.from('user_progress').upsert({
+                key: this.accessKey,
+                scale_id: this.scaleConfig.id,
+                answers: this.answers,
+                doubts: this.doubts,
+                history: this.history,
+                update_time: this.updateTime
+            }, { onConflict: 'key, scale_id' });
+            
             if (statusEl) statusEl.innerHTML = "<span style='color:#4caf50;'>✅ 已安全上云</span>";
-
         } catch (e) {
-            console.error("【同步保存异常】", e);
-            if (statusEl) {
-                statusEl.innerHTML = "<span style='color:#d32f2f; cursor:pointer;'>❌ 上传失败(点我)</span>";
-                statusEl.onclick = () => alert(`🚨 保存失败: ${e.message}\n已存在本地缓存中。`);
-            }
+            console.error(e);
+            if (statusEl) statusEl.innerHTML = "<span style='color:#d32f2f;'>❌ 上传失败</span>";
         }
     },
+    
+    setupGist() { alert('该项目已全程接入 Supabase 进行同步，无需手动配置 Github Gist！您可以随时跨端顺畅使用。'); },
 
     // --- 🌟 新增功能 1：归档并重测 ---
     archiveAndRestart() {
@@ -453,7 +348,7 @@ const app = {
         this.doubts = {};
         this.currentIndex = 0;
 
-        this.saveLocalData();
+        this.saveSupabaseData();
         this.forceCloudSync(); // 强制云端同步这次大变更
         alert("✅ 已成功封存！即将为您加载全新空白测试...");
         location.reload();
@@ -500,7 +395,7 @@ const app = {
     deleteHistory(index) {
         if (!confirm("警告：删除后无法恢复，确定要删除这条历史记录吗？")) return;
         this.history.splice(index, 1);
-        this.saveLocalData();
+        this.saveSupabaseData();
         this.forceCloudSync();
         this.showHistoryModal(); // 刷新弹窗
     },
@@ -865,7 +760,7 @@ const app = {
         }
         
         // 自动保存当前进度
-        this.saveLocalData();
+        this.saveSupabaseData();
         
         // 如果有云端配置，强制推送一次同步
         if (this.gistConfig.id && this.gistConfig.token) {
@@ -877,7 +772,7 @@ const app = {
     },
 
     goHome() {
-        this.saveLocalData();
+        this.saveSupabaseData();
         if (this.gistConfig.id && this.gistConfig.token) {
             this.forceCloudSync();
         }
@@ -996,18 +891,18 @@ const app = {
     },
     toggleDoubt(qNumber) {
         if (this.doubts[qNumber] !== undefined) delete this.doubts[qNumber]; else this.doubts[qNumber] = "";
-        this.saveLocalData(); this.triggerCloudSave(); this.renderQuestion();
+        this.saveSupabaseData(); this.triggerCloudSave(); this.renderQuestion();
         if (this.doubts[qNumber] !== undefined) setTimeout(() => document.getElementById(`doubt-input-${qNumber}`).focus(), 50);
     },
     saveDoubt(qNumber, text) {
-        if (this.doubts[qNumber] !== undefined) { this.doubts[qNumber] = text.trim(); this.saveLocalData(); this.triggerCloudSave(); }
+        if (this.doubts[qNumber] !== undefined) { this.doubts[qNumber] = text.trim(); this.saveSupabaseData(); this.triggerCloudSave(); }
     },
     selectOption(qNumber, value, element) {
         if (this.answers[qNumber] === value) {
             delete this.answers[qNumber]; element.classList.remove('selected');
-            this.saveLocalData(); this.updateProgress(); this.triggerCloudSave(); this.renderQuestion(); return;
+            this.saveSupabaseData(); this.updateProgress(); this.triggerCloudSave(); this.renderQuestion(); return;
         }
-        this.answers[qNumber] = value; this.saveLocalData();
+        this.answers[qNumber] = value; this.saveSupabaseData();
         document.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('selected'));
         element.classList.add('selected');
         // NOTE: value===0 is valid for PID-5. Use !== undefined instead of truthy check.
@@ -1020,16 +915,16 @@ const app = {
             delete this.answers[qNumber];
             delete this.answers[`${qNumber}_label`];
             element.classList.remove('selected');
-            this.saveLocalData(); this.updateProgress(); this.triggerCloudSave(); this.renderQuestion(); return;
+            this.saveSupabaseData(); this.updateProgress(); this.triggerCloudSave(); this.renderQuestion(); return;
         }
         this.answers[qNumber] = value;
         this.answers[`${qNumber}_label`] = optKey;
-        this.saveLocalData();
+        this.saveSupabaseData();
         document.querySelectorAll('.opt-btn').forEach(btn => btn.classList.remove('selected'));
         element.classList.add('selected');
         this.updateProgress(); this.triggerCloudSave(); setTimeout(() => this.goNext(), 300);
     },
-    skipQuestion() { this.answers[this.questions[this.currentIndex].Number] = 'skip'; this.saveLocalData(); this.triggerCloudSave(); this.goNext(); },
+    skipQuestion() { this.answers[this.questions[this.currentIndex].Number] = 'skip'; this.saveSupabaseData(); this.triggerCloudSave(); this.goNext(); },
     goPrev() { if (this.currentIndex > 0) { this.currentIndex--; this.slideDirection = 'right'; this.renderQuestion(); } },
     goNext() { this.currentIndex++; this.slideDirection = 'left'; if (this.currentIndex >= this.questions.length) this.showResults(); else this.renderQuestion(); },
     updateProgress() {
@@ -1063,7 +958,7 @@ const app = {
             } else {
                 this.answers = content; this.doubts = {}; this.updateTime = Date.now();
             }
-            this.saveLocalData(); this.forceCloudSync();
+            this.saveSupabaseData(); this.forceCloudSync();
             alert("✅ 导入成功！正在刷新页面..."); location.reload();
         } catch (e) { alert("❌ 损坏的进度码，无法识别。"); }
     }

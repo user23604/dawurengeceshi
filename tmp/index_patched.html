@@ -236,12 +236,6 @@
         .btn-danger { background: #ef4444; color: #fff; padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; }
         /* -- END NEW STYLES -- */
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-    window.supabaseUrl = 'https://dxhxwznuodztyduuidpl.supabase.co';
-    window.supabaseKey = 'sb_publishable_CAbUYjasJzz_ZUpnYkNJhg_ctlNwaHh';
-    window.supabase = window.supabase.createClient(window.supabaseUrl, window.supabaseKey);
-</script>
 </head>
 
     <!-- Nickname Prompt Modal -->
@@ -423,7 +417,16 @@
 
         // ======= App Logic =======
         const ADMIN_KEY = '11115555';
+        let siteUsers = JSON.parse(localStorage.getItem('site_users') || '{}');
         
+        // Ensure Admin exists
+        if (!siteUsers[ADMIN_KEY]) {
+            siteUsers[ADMIN_KEY] = { role: 'admin', nickname: '系统管理员', addedAt: Date.now() };
+            saveUsers();
+        }
+
+        function saveUsers() { localStorage.setItem('site_users', JSON.stringify(siteUsers)); }
+
         function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
         
         function switchView(viewId) {
@@ -443,73 +446,55 @@
         // == Authentication ==
         let authAttemptKey = '';
 
-        async function tryEnter() {
+        function tryEnter() {
             const k = document.getElementById('pwd').value.trim();
             if (!k) return;
             
-            if (k === ADMIN_KEY) {
-                await supabase.from('site_users').upsert({ key: k, role: 'admin', nickname: '系统管理员', added_at: Date.now() }, { onConflict: 'key' });
-                localStorage.setItem('access_key', k);
-                location.reload();
-                return;
-            }
-            
-            // Check Supabase directly
-            const { data, error } = await supabase.from('site_users').select('*').eq('key', k).single();
-            if (data) {
-                if (data.nickname) {
+            if (siteUsers[k]) {
+                if (siteUsers[k].nickname) {
+                    // Allowed
                     localStorage.setItem('access_key', k);
                     location.reload();
                 } else {
+                    // Exists but needs nickname
                     authAttemptKey = k;
                     document.getElementById('pwd-screen').style.display = 'none';
                     openModal('nickname-modal');
                 }
             } else {
+                // Invalid
                 document.getElementById('pwd-error').style.display = 'block';
                 document.getElementById('pwd').value = '';
                 document.getElementById('pwd').focus();
             }
         }
 
-        async function saveNicknameAndEnter() {
+        function saveNicknameAndEnter() {
             const nick = document.getElementById('nickname-input').value.trim();
             if (!nick) { alert('请输入昵称！'); return; }
-            await supabase.from('site_users').update({ nickname: nick }).eq('key', authAttemptKey);
+            siteUsers[authAttemptKey].nickname = nick;
+            saveUsers();
             localStorage.setItem('access_key', authAttemptKey);
             location.reload();
         }
 
-        async function checkAccess() {
+        function checkAccess() {
             const activeKey = localStorage.getItem('access_key');
-            if (!activeKey) {
-                showLogin(); return;
-            }
-            
-            if (activeKey === ADMIN_KEY) {
-                document.getElementById('nav-user-data').style.display = 'block';
-                document.getElementById('admin-panel').style.display = 'block';
-                renderAdminFeedbacks();
-                switchView('home-view');
-                return;
-            }
-            
-            const { data } = await supabase.from('site_users').select('*').eq('key', activeKey).single();
-            if (!data || !data.nickname) {
-                localStorage.removeItem('access_key');
-                showLogin();
+            if (!siteUsers[activeKey] || !siteUsers[activeKey].nickname) {
+                const container = document.querySelector('.container');
+                if (container) container.style.display = 'none';
+                document.querySelector('.top-nav').style.display = 'none'; // hide nav
+                document.getElementById('pwd-screen').style.display = 'flex';
             } else {
-                document.getElementById('admin-panel').style.display = 'none';
+                if (siteUsers[activeKey].role === 'admin') {
+                    document.getElementById('nav-user-data').style.display = 'block';
+                    document.getElementById('admin-panel').style.display = 'block';
+                    renderAdminFeedbacks();
+                } else {
+                    document.getElementById('admin-panel').style.display = 'none';
+                }
                 switchView('home-view');
             }
-        }
-
-        function showLogin() {
-            const container = document.querySelector('.container');
-            if (container) container.style.display = 'none';
-            const topNav = document.querySelector('.top-nav');
-            if (topNav) topNav.style.display = 'none';
-            document.getElementById('pwd-screen').style.display = 'flex';
         }
 
         // == Admin User Management ==
@@ -520,83 +505,114 @@
             return res;
         }
 
-        async function generateRandomUser() {
+        function generateRandomUser() {
             let key = generateRandomKey();
-            const { data } = await supabase.from('site_users').select('key').eq('key', key);
-            if (data && data.length > 0) return generateRandomUser(); // Retry if conflict
-            
-            await supabase.from('site_users').insert([{ key: key, role: 'user', nickname: '', added_at: Date.now() }]);
+            while(siteUsers[key]) key = generateRandomKey();
+            siteUsers[key] = { role: 'user', nickname: '', addedAt: Date.now() };
+            saveUsers();
             alert('成功生成随机密钥：' + key + '\n（请复制给用户使用）');
             closeModal('add-user-modal');
             renderUserList();
         }
 
-        async function addCustomUser() {
+        function addCustomUser() {
             const k = document.getElementById('custom-key-input').value.trim();
             if(k.length < 4) { alert('密钥至少4位'); return; }
-            const { data } = await supabase.from('site_users').select('key').eq('key', k).single();
-            if(data) { alert('该密钥已存在！'); return; }
-            
-            await supabase.from('site_users').insert([{ key: k, role: 'user', nickname: '', added_at: Date.now() }]);
+            if(siteUsers[k]) { alert('该密钥已存在！'); return; }
+            siteUsers[k] = { role: 'user', nickname: '', addedAt: Date.now() };
+            saveUsers();
             alert('成功添加自定义密钥：' + k);
             document.getElementById('custom-key-input').value = '';
             closeModal('add-user-modal');
             renderUserList();
         }
 
-        async function renderUserList() {
+        // Calculate progress for a user
+        function getUserProgressHtml(k) {
+            const scales = [
+                { id: '大五', key: 'ipip_answers' },
+                { id: 'PID5', key: 'pid5_answers' },
+                { id: 'BDI-II', key: 'bdi2_answers' },
+                { id: 'BAI', key: 'bai_answers' },
+                { id: 'YSQ', key: 'ysq_answers' }
+            ];
+            
+            let summaries = [];
+            scales.forEach(s => {
+                const dataStr = localStorage.getItem(`${s.key}_${k}`);
+                if (dataStr) {
+                    try {
+                        const localData = JSON.parse(dataStr);
+                        let answeredCount = 0;
+                        if (localData.answers) {
+                            answeredCount = Object.keys(localData.answers).filter(ak => localData.answers[ak] !== 'skip' && !ak.endsWith('_label')).length;
+                        } else {
+                            answeredCount = Object.keys(localData).filter(ak => localData[ak] !== 'skip' && !ak.endsWith('_label')).length;
+                        }
+                        if (answeredCount > 0) {
+                            summaries.push(`<span style="display:inline-block; margin-right:10px; background:rgba(139,92,246,0.1); padding:2px 6px; border-radius:4px; font-size:0.8rem;">${s.id}进度: ${answeredCount}题</span>`);
+                        }
+                    } catch(e){}
+                }
+            });
+            return summaries.length > 0 ? summaries.join('') : '<span style="color:var(--text-secondary); font-size:0.8rem;">暂无答题数据</span>';
+        }
+
+        // Expanded progress details for user detail view
+        function getUserProgressDetailsHtml(k) {
+            const scales = [
+                { id: '大五人格', key: 'ipip_answers', max: 300 },
+                { id: 'PID-5测验', key: 'pid5_answers', max: 220 },
+                { id: '贝克抑郁 BDI-II', key: 'bdi2_answers', max: 21 },
+                { id: '贝克焦虑 BAI', key: 'bai_answers', max: 21 },
+                { id: 'YSQ图式', key: 'ysq_answers', max: 90 }  // Approximation, since max questions may vary slightly we just show answered
+            ];
+            
+            let summaries = [];
+            let totalActivity = 0;
+            scales.forEach(s => {
+                const dataStr = localStorage.getItem(`${s.key}_${k}`);
+                if (dataStr) {
+                    try {
+                        const localData = JSON.parse(dataStr);
+                        let answeredCount = 0;
+                        let historyCount = 0;
+                        if (localData.answers) {
+                            answeredCount = Object.keys(localData.answers).filter(ak => localData.answers[ak] !== 'skip' && !ak.endsWith('_label')).length;
+                            historyCount = localData.history ? localData.history.length : 0;
+                        } else {
+                            answeredCount = Object.keys(localData).filter(ak => localData[ak] !== 'skip' && !ak.endsWith('_label')).length;
+                        }
+                        if (answeredCount > 0 || historyCount > 0) {
+                            totalActivity++;
+                            summaries.push(`<div style="margin-bottom: 10px;">
+                                <strong>${s.id}</strong>：当前已答 ${answeredCount} 题
+                                ${historyCount > 0 ? `<span style="color:#4ade80; margin-left:10px;">(历史完成 ${historyCount} 次)</span>` : ''}
+                            </div>`);
+                        }
+                    } catch(e){}
+                }
+            });
+            return totalActivity > 0 ? summaries.join('') : '<div style="color:var(--text-secondary);">该用户尚未开始任何测试。</div>';
+        }
+
+        function renderUserList() {
             const query = document.getElementById('user-search').value.toLowerCase();
             const container = document.getElementById('user-list-container');
             
-            container.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-secondary);">🌐 从云端拉取最新数据中...</div>';
-            
-            const [usersRes, progressRes] = await Promise.all([
-                supabase.from('site_users').select('*').order('added_at', { ascending: false }),
-                supabase.from('user_progress').select('key, scale_id, answers, history')
-            ]);
-            
-            const allUsers = usersRes.data || [];
-            const allProgress = progressRes.data || [];
-            
-            // Map progress to keys
-            const progressMap = {};
-            allProgress.forEach(p => {
-                if (!progressMap[p.key]) progressMap[p.key] = [];
-                progressMap[p.key].push(p);
-            });
-            
-            // Expose globally for detail view
-            window.currentMemUsers = allUsers;
-            window.currentMemProgress = progressMap;
-
             let html = '';
-            
-            allUsers.forEach(u => {
-                const k = u.key;
-                if (k === ADMIN_KEY && query === '') return;
+            Object.keys(siteUsers).forEach(k => {
+                if (k === ADMIN_KEY && query === '') return; // Optionally hide admin from general list unless searched
+                const u = siteUsers[k];
                 const nick = u.nickname || '(未设置昵称)';
                 
                 if (nick.toLowerCase().includes(query) || k.toLowerCase().includes(query)) {
-                    // Generate progress badges
-                    const pList = progressMap[k] || [];
-                    let phtml = '';
-                    pList.forEach(p => {
-                        let answeredCount = 0;
-                        if(p.answers) {
-                            answeredCount = Object.keys(p.answers).filter(ak => p.answers[ak] !== 'skip' && !ak.endsWith('_label')).length;
-                        }
-                        if(answeredCount > 0) {
-                            phtml += `<span style="display:inline-block; margin-right:10px; background:rgba(139,92,246,0.1); padding:2px 6px; border-radius:4px; font-size:0.8rem;">${p.scale_id}: ${answeredCount}题</span>`;
-                        }
-                    });
-                    if (phtml === '') phtml = '<span style="color:var(--text-secondary); font-size:0.8rem;">暂无答题数据</span>';
-
                     html += `
                     <div class="user-row" onclick="viewUserDetail('${k}')">
                         <div>
                             <div class="u-nick">${nick} ${k === ADMIN_KEY ? '<span style="color:#f472b6; font-size:0.8rem;">[管理员]</span>' : ''}</div>
                             <div style="font-family:monospace; font-size:0.85rem; color:var(--text-secondary); margin-top:4px;">${k}</div>
-                            <div class="u-prog">${phtml}</div>
+                            <div class="u-prog">${getUserProgressHtml(k)}</div>
                         </div>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
                     </div>`;
@@ -608,41 +624,24 @@
         }
 
         function viewUserDetail(k) {
-            const u = window.currentMemUsers.find(x => x.key === k);
-            if(!u) return;
-            
+            const u = siteUsers[k];
             document.getElementById('detail-nickname').innerText = u.nickname || '(未设置昵称)';
             document.getElementById('detail-key').querySelector('span').innerText = k;
-            
-            const pList = window.currentMemProgress[k] || [];
-            let phtml = '';
-            let totalActivity = 0;
-            pList.forEach(p => {
-                let answeredCount = 0;
-                let historyCount = p.history ? p.history.length : 0;
-                if(p.answers) {
-                    answeredCount = Object.keys(p.answers).filter(ak => p.answers[ak] !== 'skip' && !ak.endsWith('_label')).length;
-                }
-                if (answeredCount > 0 || historyCount > 0) {
-                    totalActivity++;
-                    phtml += `<div style="margin-bottom: 10px;">
-                        <strong>${p.scale_id}</strong>：当前已答 ${answeredCount} 题
-                        ${historyCount > 0 ? `<span style="color:#4ade80; margin-left:10px;">(历史完成 ${historyCount} 次)</span>` : ''}
-                    </div>`;
-                }
-            });
-            if(totalActivity === 0) phtml = '<div style="color:var(--text-secondary);">该用户尚未开始任何测试。</div>';
-            document.getElementById('detail-progress').innerHTML = phtml;
+            document.getElementById('detail-progress').innerHTML = getUserProgressDetailsHtml(k);
             
             const delBtn = document.getElementById('detail-delete-btn');
             if (k === ADMIN_KEY || k === localStorage.getItem('access_key')) {
                 delBtn.style.display = 'none';
             } else {
                 delBtn.style.display = 'block';
-                delBtn.onclick = async () => {
+                delBtn.onclick = () => {
                     if (confirm(`警告：确定要删除用户 "${u.nickname}" 及其关联密钥吗？数据无法恢复！`)) {
-                        await supabase.from('site_users').delete().eq('key', k);
-                        await supabase.from('user_progress').delete().eq('key', k);
+                        delete siteUsers[k];
+                        saveUsers();
+                        // Optional: cleanup local storage keys for this user
+                        Object.keys(localStorage).forEach(lk => {
+                            if (lk.endsWith('_' + k)) localStorage.removeItem(lk);
+                        });
                         alert('已删除该用户');
                         switchView('user-manage-view');
                     }
@@ -652,6 +651,7 @@
             switchView('user-detail-view');
         }
 
+        /* Original logic overrides */
         function renderAdminFeedbacks() {
             const feedbacks = JSON.parse(localStorage.getItem('site_feedbacks') || '[]');
             const container = document.getElementById('admin-feedbacks-container');
@@ -667,6 +667,36 @@
             ).join('');
         }
 
+        function checkAccess() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const keyFromUrl = urlParams.get('key');
+            if (keyFromUrl === CORRECT_KEY) localStorage.setItem('access_key', keyFromUrl);
+
+            const activeKey = localStorage.getItem('access_key');
+            if (activeKey !== CORRECT_KEY) {
+                document.querySelector('.container').style.display = 'none';
+                const pwdDiv = document.getElementById('pwd-screen');
+                pwdDiv.style.display = 'flex';
+            } else {
+                // Feature: If they are the "admin" (knowing 11115555), show feedbacks
+                if (activeKey === '11115555') {
+                    document.getElementById('admin-panel').style.display = 'block';
+                    renderAdminFeedbacks();
+                }
+            }
+        }
+
+        function tryEnter() {
+            const k = document.getElementById('pwd').value;
+            if (k === CORRECT_KEY) {
+                localStorage.setItem('access_key', k);
+                location.reload();
+            } else {
+                document.getElementById('pwd-error').style.display = 'block';
+                document.getElementById('pwd').value = '';
+                document.getElementById('pwd').focus();
+            }
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             checkAccess();
@@ -674,14 +704,14 @@
         });
         document.getElementById('pwd')?.addEventListener('keydown', function(e){ if(e.key==='Enter') tryEnter(); });
 
-        async function loadCardProgress() {
-            const userKey = localStorage.getItem('access_key');
-            if(!userKey) return;
-            const { data } = await supabase.from('user_progress').select('scale_id, answers, history').eq('key', userKey);
-            if(!data) return;
-            
-            const progressMap = {};
-            data.forEach(d => { progressMap[d.scale_id] = d; });
+        function loadCardProgress() {
+            const scaleKeys = {
+                'bigfive': 'ipip_answers',
+                'pid5': 'pid5_answers',
+                'bdi2': 'bdi2_answers',
+                'bai': 'bai_answers',
+                'ysq': 'ysq_answers'
+            };
             
             document.querySelectorAll('.card').forEach(card => {
                 const href = card.getAttribute('href');
@@ -689,27 +719,43 @@
                 
                 const urlParams = new URLSearchParams(href.split('?')[1]);
                 const scale = urlParams.get('scale');
-                const localData = progressMap[scale];
+                const userKey = localStorage.getItem('access_key') || 'guest';
+                const localKey = scaleKeys[scale] ? scaleKeys[scale] + '_' + userKey : null;
                 
-                if (localData) {
+                if (localKey) {
                     try {
+                        const localData = JSON.parse(localStorage.getItem(localKey));
+                        if (!localData) return;
+                        
                         let answeredCount = 0;
-                        let historyCount = localData.history ? localData.history.length : 0;
+                        let historyCount = 0;
+                        
                         if (localData.answers) {
-                            answeredCount = Object.keys(localData.answers).filter(ak => localData.answers[ak] !== 'skip' && !ak.endsWith('_label')).length;
+                            answeredCount = Object.keys(localData.answers).filter(k => localData.answers[k] !== 'skip' && !k.endsWith('_label')).length;
+                            historyCount = localData.history ? localData.history.length : 0;
+                        } else {
+                            // Old format fallback
+                            answeredCount = Object.keys(localData).filter(k => localData[k] !== 'skip' && !k.endsWith('_label')).length;
                         }
                         
                         if (answeredCount > 0 || historyCount > 0) {
                             const badgeContainer = document.createElement('div');
                             badgeContainer.className = 'card-badge-container';
-                            if (historyCount > 0) badgeContainer.innerHTML += `<div class="card-badge history"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> 历史 ${historyCount} 次</div>`;
-                            if (answeredCount > 0) badgeContainer.innerHTML += `<div class="card-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> 进度 ${answeredCount} 题</div>`;
+                            
+                            if (historyCount > 0) {
+                                badgeContainer.innerHTML += `<div class="card-badge history"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> 历史 ${historyCount} 次</div>`;
+                            }
+                            if (answeredCount > 0) {
+                                badgeContainer.innerHTML += `<div class="card-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> 进度 ${answeredCount} 题</div>`;
+                            }
+                            
                             card.appendChild(badgeContainer);
                         }
                     } catch(e) { console.error('Error loading progress for', scale, e); }
                 }
             });
         }
+
         function submitFeedback() {
             const val = document.getElementById('feedback-input').value.trim();
             if (!val) {
